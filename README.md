@@ -69,6 +69,8 @@ A guided, multi-step wizard for AI-assisted creation of new SYSMOD / SysML v2 mo
 sysmod-sysmlv2-api/
 ├── sysmod_api_server.py       # Main Flask application & REST API endpoints
 ├── sysmod_api_helpers.py      # SYSMOD-specific helper functions (queries, parsing)
+├── pleml_api_server.py        # PLEML Flask Blueprint (feature tree & bindings endpoints)
+├── pleml_api_helpers.py       # PLEML helper functions (feature tree, feature bindings)
 ├── html/
 │   ├── index.html             # Project / Commit / SYSMOD Project selection page
 │   ├── project.html           # SYSMOD Viewer dashboard
@@ -86,6 +88,15 @@ sysmod-sysmlv2-api/
 ├── word/                      # Word macro templates
 └── .env                       # Environment variables (API keys, not tracked)
 ```
+
+### Module Overview
+
+| Module | Role |
+|---|---|
+| `sysmod_api_server.py` | Main Flask app; mounts `pleml_blueprint` and serves all SYSMOD endpoints |
+| `sysmod_api_helpers.py` | SYSMOD model queries — problem statement, system idea, contexts, stakeholders, requirements, quality checks, etc. |
+| `pleml_api_server.py` | Flask Blueprint for all PLEML/feature endpoints; can also run standalone on port `5001` |
+| `pleml_api_helpers.py` | PLEML helper functions: feature tree (UVL), feature bindings, PLEML presence check |
 
 ---
 
@@ -179,6 +190,8 @@ Or click **"Start Creation Wizard"** to create a new SYSMOD model from scratch.
 
 The Flask server exposes the following REST API endpoints (all accept/return JSON unless noted):
 
+### SYSMOD Endpoints (`sysmod_api_server.py`)
+
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/projects` | List projects on a SysML v2 server |
@@ -194,9 +207,6 @@ The Flask server exposes the following REST API endpoints (all accept/return JSO
 | `POST` | `/api/requirements` | Get system requirements |
 | `POST` | `/api/usecases` | Get use cases |
 | `POST` | `/api/stakeholders` | Get stakeholders |
-| `POST` | `/api/feature-bindings` | Get feature binding dependencies |
-| `POST` | `/api/feature-bindings/toggle` | Create or delete a feature binding |
-| `POST` | `/api/feature-tree-uvl` | Get the UVL feature tree |
 | `POST` | `/api/quality-checks` | Run SYSMOD model quality checks |
 | `POST` | `/api/sysmod-atlas` | Get SYSMOD Atlas status overview |
 | `POST` | `/api/ai-suggestion_problem_statement` | Get an AI-improved problem statement |
@@ -209,6 +219,18 @@ The Flask server exposes the following REST API endpoints (all accept/return JSO
 | `POST` | `/api/wizard/system-requirements` | Wizard Step 6 — system requirements generation |
 | `POST` | `/api/wizard/use-cases` | Wizard Step 7 — use case generation |
 | `POST` | `/api/wizard/product-arch` | Wizard Step 8 — product architecture generation |
+
+### PLEML Endpoints (`pleml_api_server.py`)
+
+These endpoints are provided by the `pleml_blueprint` Flask Blueprint and are registered in the main server. The `pleml_api_server.py` module can also be run **standalone** on port `5001` for PLEML-only deployments.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/check-pleml` | Check whether the project contains a PLEML feature model (`has_pleml`, `feature_tree_count`) |
+| `POST` | `/api/feature-bindings` | Get feature binding dependencies (annotated with `@FB`) |
+| `POST` | `/api/feature-bindings/toggle` | Create or delete a feature binding |
+| `POST` | `/api/feature-tree-uvl` | Get the UVL feature tree (from element annotated with `@featureTree`) |
+| `POST` | `/api/feature-tree-sysml` | Get the feature tree as a matrix + Mermaid graph (currently returns dummy data) |
 
 ---
 
