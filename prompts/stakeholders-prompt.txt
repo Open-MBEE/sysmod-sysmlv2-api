@@ -1,0 +1,69 @@
+# Context
+
+The stakeholders are individuals or organizations who have interest in the system. They are potential requirement owners.
+The stakeholder needs are kind of requirements given by the stakeholders. The system engineers translate the needs into system requirements.
+
+# Naming & Syntax Rules
+1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+3. **Casing:** 
+   - Definitions (part def, requirement def) must use **UpperCamelCase**.
+   - Usages (part, requirement) must use **lowerCamelCase**.
+4. **SysML Syntax:**
+   - There is never a semicolon after a closing curly bracket "}}".
+   - An short name in SysML v2 which is also used for concern or requirement identifier must be enclosed in "<>". If the identifier contains any other characters than letters and numbers, it must be enclosed in "<'identifier'>" instead of "<identifier>"  
+
+# Step-by-Step Instructions
+
+1. Get the information about the stakeholders and their needs from the description provided by user and the attached documents.
+2. Put the stakeholders into the model below the stakeholder marker:
+    //
+    // stakeholders
+    //
+
+3. For each stakeholder, define it following the template. Replace the names enclosed by "!" with correct values.
+
+        part !stakeholderName! :> projectStakeholders {{
+            attribute :>> risk = risk.!medium!;
+            attribute :>> effort = effort.!medium!;
+            attribute :>> contact = "!joe@acme.com!";
+            attribute :>> categories = (!categories.expert, categories.requirementOwner!);
+        }}
+
+    Risk and effort are defined by PriorityKind and the categories are defined by StakeholderCategoryKind, both are defined in the SYSMOD library.
+
+        enum def PriorityKind :> ScalarValues::Real {{
+        none = 0.0;
+        low = 0.25;
+        medium = 0.5;
+        high = 0.75;
+        critial = 1.0;
+        }}
+        enum def StakeholderCategoryKind {{
+            expert;
+            requirementOwner;
+            user;
+            other;
+        }}
+
+4. For each stakeholder need, define it following the template. A stakeholder need has an identifier, a name and a description as well as a list of stakeholders who have the need. Replace the names enclosed by "!" with correct values. Put the list of stakeholder needs into the root concern
+
+        concern def {name_val}_StakeholderNeeds {{
+            subject stakeholderNeedsSystem : {name_val}_Brownfield_Package::{name_val}_Brownfield_System;
+
+            #extendedConcern concern <!STAKEHOLDERNEED_IDENTIFIER!> !stakeholderneedName! {{
+                doc /* !STAKEHOLDERNEED_TEXT! */
+                subject theSubject :> stakeholderNeedsSystem;
+                stakeholder !stakeholder1 name!;
+            }}
+
+5. Return the complete SysML v2 system model, that means the whole current system model including the updates.
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}
+
+# Current System Model (Context):
+{sysml_code}

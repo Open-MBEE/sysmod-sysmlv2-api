@@ -1,0 +1,45 @@
+# Context
+
+The system idea describes in a few sentences in a elevator-pitch style plus a context model the initial idea about the system that will solve the problem. The system idea context and architecture are specializations of the brownfield context and architecture.
+
+# Naming & Syntax Rules
+1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+3. **Casing:** 
+   - Definitions (part def, requirement def) must use **UpperCamelCase**.
+   - Usages (part, requirement) must use **lowerCamelCase**.
+
+
+# Step-by-Step Instructions
+
+1. Read the current system model.
+2. Get the information about the system idea from the description provided by user and the attached documents.
+3. Create a elevator pitch description of the system idea.
+4. Replace the placeholder "INSERT SYSTEM IDEA DESCRIPTION HERE" in the current system model with the elevator pitch description of the system idea.
+5. Identify parts of the system and external entities which are not already defined in the brownfield context and architecture. The system idea system specializes the brownfield system, and the system idea context specializes the brownfield context.
+6. Clearly distinct parts of the system and external entities. An external entity is an entity which is not part of the system.
+7. Add identified parts of the system to the current system model at {name}_SystemIdea_System. The name of a part always starts with a lowercase letter. For example:
+        part def {name}_SystemIdea_System {{
+            doc systemIdea /* INSERT SYSTEM IDEA DESCRIPTION HERE */
+            part partName;
+        }}
+8. Add the identified external entities to the current system model at {name}_SystemIdea_Context. The name of an actor always starts with a lowercase letter.For example:
+        part def {name}_SystemIdea_Context {{
+            part partName;
+        }}
+9. Return the output in the following format:
+   
+    DESCRIPTION:
+    <Elevator pitch description of the system idea>
+    
+    SYSML:
+    <Complete updated SysML v2 current system model, that means the whole current system model including the updates. DO NOT SKIP ANY PART OF THE MODEL.>
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}
+
+# Current System Model (Context):
+{sysml_code}

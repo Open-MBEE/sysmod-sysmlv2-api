@@ -1,0 +1,75 @@
+# ==================================
+# Environment & Secrets
+# ==================================
+.env
+.env.*
+!.env.example
+
+# ==================================
+# Python
+# ==================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+*.whl
+*.pyo
+*.pyd
+
+# ==================================
+# Virtual Environments
+# ==================================
+.venv/
+venv/
+env/
+ENV/
+.Python
+
+# ==================================
+# Flask / App Specific
+# ==================================
+instance/
+uploads/*/
+
+# ==================================
+# Testing & Coverage
+# ==================================
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+nosetests.xml
+
+# ==================================
+# IDEs & Editors
+# ==================================
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-workspace
+*.DS_Store
+Thumbs.db
+
+# ==================================
+# Logs
+# ==================================
+*.log
+logs/
+
+# ==================================
+# Distribution
+# ==================================
+*.tar.gz
+*.zip

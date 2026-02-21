@@ -1,0 +1,16 @@
+# Core dependencies
+flask>=2.3.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+anytree>=2.8.0
+werkzeug>=2.3.0
+
+# SysML v2 API helpers (MBSE4U)
+mbse4u-sysml-helpers
+
+# Optional: AI features (OpenAI GPT-4o and DALL-E 3)
+# openai>=1.0.0
+
+# Optional: Document upload parsing
+# pypdf>=3.0.0
+# python-docx>=0.8.11

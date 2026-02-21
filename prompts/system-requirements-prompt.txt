@@ -1,0 +1,90 @@
+# Context
+
+System requirements specify the functional and non-functional requirements that the system must meet.
+
+# Naming & Syntax Rules
+
+1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+3. **Casing:** 
+   - Definitions (part def, requirement def) must use **UpperCamelCase**.
+   - Usages (part, requirement) must use **lowerCamelCase**.
+4. **SysML Syntax:**
+   - There is never a semicolon after a closing curly bracket "}}".
+   - An short name in SysML v2 which is also used for concern or requirement identifier must be enclosed in "<>". If the identifier contains any other characters than letters and numbers, it must be enclosed in "<'identifier'>" instead of "<identifier>"  
+
+# Step-by-Step Instructions
+
+1. Read and understand the given current SysML v2 system model which will be updated by the next steps.
+2. Get the information about the system requirements from the description provided by user and the attached documents.
+3. Read the given information and identify the requirements.
+4. For each requirement, define it following the template !REQUIREMENT! and insert them into the requirement specification which already exists in the current system model as shown in the template:
+    a. Replace !REQUIREMENT_IDENTIFIER! with the identifier of the requirement.
+    b. Replace !REQUIREMENT_NAME! with name of the requirement starting with a lowercase letter.
+    c. Set appropriate values for the properties priority, obligation, and stability. The allowed values are defined by enumerations in the SYSMOD library. The values in the template below are only examples. Replace them with corresponding values for each requirement.
+    d. Set the motivation of the requirement (why do we require it) and replace !REQUIREMENT_MOTIVATION! with the text.
+    e. Replace !REQUIREMENT_TEXT! with the requirement statement.
+
+    package {name}_System_Requirements_Package {{
+        #extendedRequirement requirement def {name}_System_Requirement_Specification {{
+            subject system :  {name}_System_Package::{name}_System;
+            #extendedRequirement requirement <!REQUIREMENT_IDENTIFIER!> !REQUIREMENT_NAME! {{
+                subject theSubject :> system;
+                attribute :>> priority = priority.medium;
+                attribute :>> obligation = obligation.mandatory;
+                attribute :>> stability = stability.stable;
+                attribute :>> motivation = "!REQUIREMENT_MOTIVATION!";
+                require constraint {{
+                    doc /* !REQUIREMENT_TEXT! */
+                }}
+            }}
+        }}
+    }}
+
+    Here's an example:
+        package Aquarius_System_Requirements_Package {{
+            #extendedRequirement requirement def Aquarius_System_Requirement_Specification {{
+                subject system :  Aquarius_System_Package::Aquarius_System;      
+                #extendedRequirement requirement <FR_3_1_1> multilingualeKommunikationseinheit {{
+                    subject theSubject :> system;
+                    attribute :>> priority = priority.high;
+                    attribute :>> obligation = obligation.mandatory;
+                    attribute :>> stability = stability.stable;
+                    attribute :>> motivation = "The system must communicate effectively with various marine species.";
+                    require constraint {{
+                        doc /* The machine must interpret and send click sounds, bubble language, whale songs, dolphin whistles, and crab clattering. */
+                    }}
+                }}
+            }}
+        }}
+
+    Priority, obligation and stability are defined by PriorityKind, ObligationKind, and StabilityKind, which are defined in the SYSMOD library:
+
+        enum def PriorityKind :> ScalarValues::Real {{
+            none = 0.0;
+            low = 0.25;
+            medium = 0.5;
+            high = 0.75;
+            critical = 1.0;
+        }}
+        enum def ObligationKind {{
+            none;
+            mandatory;
+            optional;
+        }}
+        enum def StabilityKind {{
+            none;
+            unstable;
+            stable;
+        }}
+
+5. Return the complete updated SysML v2 current system model, that means the whole current system model including the updates. DO NOT SKIP ANY PART OF THE MODEL.
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}
+
+# Current System Model (Context):
+{sysml_code}

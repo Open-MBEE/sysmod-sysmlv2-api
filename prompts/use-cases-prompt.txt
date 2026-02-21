@@ -1,0 +1,52 @@
+# Context
+
+Use cases define how users and other systems will interact with your system to achieve specific goals. 
+Apply the use case method from the SYSMOD methodology.
+
+# Naming & Syntax Rules
+
+# Naming & Syntax Rules
+1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+3. **Casing:** 
+   - Definitions (part def, requirement def) must use **UpperCamelCase**.
+   - Usages (part, requirement) must use **lowerCamelCase**.
+
+
+# Step-by-Step Instructions
+
+1. Read and understand the given current SysML v2 system model which will be updated by the next steps.
+2. Get the information about the use cases from the description provided by user and the attached documents.
+3. Read the given information and identify the use cases, including actors and use case steps.
+4. Identify actors of the brownfield or system idea context from the {name}_Brownfield_Package::{name}_Brownfield_Context and {name}_SystemIdea_Package::{name}_SystemIdea_Context.
+5. If you find new actors, add them to the existing {name}_Brownfield_Package::{name}_Brownfield_Context or {name}_SystemIdea_Package::{name}_SystemIdea_Context.
+6. Add each identified use case to the existing package {name}_UseCases_Package in the given model following the template. The package already exists.
+
+    use case def USECASE_NAME {{
+        subject system : {name}_System_Package::{name}_System;
+        actor actorName;
+        objective {{
+            doc /* USECASE_DESCRIPTION */
+        }}
+        action usecase_step1;
+        action usecase_step2;
+    }}
+
+
+7. For each use case definition from step 6, define a use case usage in the existing context {name}_System_Package::{name}_System_Context in the given model following the given template. The actor subsets an inherited actor from the brownfield or system idea context.
+
+    use case usecase_name : {name}_UseCases_Package::USECASE_NAME {{
+        subject :>> system :> {name_lower}_system:
+        actor :>> actorName :> brownfieldOrSystemIdeaContextActorName;
+    }}
+
+8. Return the complete updated SysML v2 current system model, that means the whole current system model including the updates. DO NOT SKIP ANY PART OF THE MODEL. The output will be forwarded to another tool.
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}
+
+# Current System Model (Context):
+{sysml_code}

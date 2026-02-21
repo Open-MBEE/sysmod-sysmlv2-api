@@ -1,0 +1,36 @@
+# Context
+
+Product architecture defines the structural breakdown of the product into subsystems and components.
+
+# Naming & Syntax Rules
+
+# Naming & Syntax Rules
+1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+3. **Casing:** 
+   - Definitions (part def, requirement def) must use **UpperCamelCase**.
+   - Usages (part, requirement) must use **lowerCamelCase**.
+
+
+# Step-by-Step Instructions
+
+1. Get the information about the product architecture from the description provided by user and the attached documents.
+2. Read the given information and identify the subsystems and components.
+3. Add identified subsystems and components to {name_val}_Product_Architecture_System following the given template:
+    part def {name_val}_Product_Architecture_System :> {name_val}_System {{
+        part subsystem1;
+        part subsystem2;
+        element component1;
+        
+        // Define connections or compositions if appropriate.
+    }}
+4. Return the complete SysML v2 system model, that means the whole current system model including the updates.
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}
+
+# Current System Model (Context):
+{sysml_code}

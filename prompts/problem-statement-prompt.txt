@@ -1,0 +1,18 @@
+# Context
+
+The problem statement describes in a few sentences in a elevator-pitch style the problem and pain points that should be resolved by the system. 
+IMPORTANT: The problem statement describes the problem and not the solution. For example: The problem is more flexible mobility, and a solution is a Car.
+
+The name of the system is {name}.
+
+# Step-by-Step Instructions
+
+1. Get the information about the problem statement from the description provided by user and the attached documents.
+2. Formulate a concise problem statement. The text is in an elevator pitch style.
+3. Return the text of the problem statement. Use raw text and no markdown or other formatting.
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}

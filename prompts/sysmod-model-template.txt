@@ -1,0 +1,64 @@
+package {name} {{
+    private import SYSMOD::*;
+
+    #project occurrence def {name}_Project {{
+        doc /* {description} */
+
+        part {name_lower}_brownfield_context : {name}_Brownfield_Package::{name}_Brownfield_Context :>> brownfieldSystemContext;
+        concern :>> problemStatement {{
+            doc /* INSERT PROBLEM STATEMENT HERE */
+        }}
+        concern {name_lower}_stakeholderneeds : {name}_StakeholderNeeds_Package::{name}_StakeholderNeeds :>> stakeholderNeeds {{
+            subject :>> stakeholderNeedsSystem, theSubject;
+        }}
+        part {name_lower}_systemidea_context : {name}_SystemIdea_Package::{name}_SystemIdea_Context :>> systemIdeaContext {{
+            part {name_lower}_systemidea_system :>> {name_lower}_systemidea_system, soi;
+        }}
+        part {name_lower}_system_context : {name}_System_Package::{name}_System_Context :>> systemContext;
+        requirement {name_lower}_system_requirement_specification : {name}_System_Requirements_Package::{name}_System_Requirement_Specification :>> systemRequirementSpecification {{
+            subject :>> system, system;
+        }}
+
+        //
+        // Stakeholders
+        //
+    }}
+    package {name}_Brownfield_Package {{
+        #systemContext part def {name}_Brownfield_Context {{
+            part {name_lower}_brownfield_system : {name}_Brownfield_System :>> systemOfInterest;
+        }}
+        part def {name}_Brownfield_System;
+    }}
+    package {name}_StakeholderNeeds_Package {{
+        #extendedConcern concern def {name}_StakeholderNeeds {{
+            subject stakeholderNeedsSystem : {name}_Brownfield_Package::{name}_Brownfield_System;
+        }}
+    }}
+    package {name}_SystemIdea_Package {{
+        #systemContext part def {name}_SystemIdea_Context :> {name}_Brownfield_Package::{name}_Brownfield_Context {{
+            part {name_lower}_systemidea_system : {name}_SystemIdea_System :>> {name_lower}_brownfield_system;
+        }}
+        part def {name}_SystemIdea_System {{
+            doc systemIdea /* INSERT SYSTEM IDEA DESCRIPTION HERE */
+        }}
+    }}
+    package {name}_System_Package {{
+        #systemContext part def {name}_System_Context :> {name}_SystemIdea_Package::{name}_SystemIdea_Context {{
+            part {name_lower}_system : {name}_System :>> {name_lower}_systemidea_system;
+        }}
+        part def {name}_System;
+    }}
+    package {name}_System_Requirements_Package {{
+        #extendedRequirement requirement def {name}_System_Requirement_Specification {{
+            subject system : {name}_System_Package::{name}_System;
+        }}
+    }}
+    package {name}_UseCases_Package {{
+    }}
+    package {name}_Product_Architecture_Package {{
+        #systemContext part def {name}_Product_Architecture_Context :> {name}_System_Package::{name}_System_Context {{
+            part {name_lower}_product_architecture_system : {name}_Product_Architecture_System :>> {name_lower}_system;
+        }}
+        part def {name}_Product_Architecture_System;
+    }}
+}}

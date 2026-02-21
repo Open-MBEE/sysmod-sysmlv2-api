@@ -1,0 +1,40 @@
+# Context
+
+The brownfield system describes the system that is already set at the beginning of a project. Rarely nobody builds a system on a greenfield.
+Actors of the system are external entities which are not part of the system. They can be human users, other systems, or the environment.
+
+# Naming & Syntax Rules
+
+# Naming & Syntax Rules
+1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+3. **Casing:** 
+   - Definitions (part def, requirement def) must use **UpperCamelCase**.
+   - Usages (part, requirement) must use **lowerCamelCase**.
+4. **SysML Syntax:**
+   - There is never a semicolon after a closing curly bracket "}}".
+
+
+# Step-by-Step Instructions
+
+1. Get the information about the brownfield system from the description provided by user and the attached documents.
+2. Read the given information and identify the brownfield system and actors of the system which are already set.
+3. Clearly distinct parts of the system and actors. An actor is an entity which is not part of the system.
+4. Add identified parts of the system to {name_val}_Brownfield_System. The name of a part always starts with a lowercase letter. For example:
+        part def {name_val}_Brownfield_System {{
+            part partName;
+        }}
+5. Add the identified actors to {name_val}_Brownfield_Context. The name of an actor always starts with a lowercase letter. In the following example, replace "actorName" with the name of the identified actor
+        part def {name_val}_Brownfield_Context {{
+            part actorName :> actors;
+        }}
+6. Return the complete SysML v2 system model, that means the whole current system model including the updates.
+
+# Description provided by user:
+{description}
+
+# Attached Documents Content:
+{file_contents}
+
+# Current System Model (Context):
+{sysml_code}
