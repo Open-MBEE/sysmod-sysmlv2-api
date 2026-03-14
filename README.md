@@ -1,4 +1,4 @@
-# sysmod-sysmlv2-api-mcp
+# SYSMOD SysML v2 API Python and MCP Server
 
 > A Flask-based REST API server, web UI, and **MCP (Model Context Protocol) server** for accessing and visualizing **SYSMOD** SysML v2 models.
 
