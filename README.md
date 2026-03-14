@@ -1,11 +1,11 @@
-# sysmod-sysmlv2-api
+# sysmod-sysmlv2-api-mcp
 
-> A Flask-based server and web UI for accessing and visualizing **SYSMOD** SysML v2 models via the SysML v2 API.
+> A Flask-based REST API server, web UI, and **MCP (Model Context Protocol) server** for accessing and visualizing **SYSMOD** SysML v2 models.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-REST%20API-green)](https://flask.palletsprojects.com/)
-
+[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple)](https://modelcontextprotocol.io/)
 
 > [!WARNING]
 > **Work in Progress** — This project is under active development. Some features may be incomplete, use placeholder/dummy data, or behave unexpectedly. Contributions and feedback are welcome.
@@ -14,15 +14,27 @@
 
 ## Overview
 
-**sysmod-sysmlv2-api** is a demonstrator application for the [SYSMOD methodology](https://mbse4u.com/sysmod/) that connects to a SysML v2 repository server and provides a rich, interactive web-based viewer and wizard for your SysML v2 models.
+**sysmod-sysmlv2-api-mcp** connects to a SysML v2 repository server and provides:
 
-Key highlights:
+- 🔌 **REST API + Web UI** — interactive browser-based viewer and wizard for SYSMOD models  
+- 🤖 **MCP Server** — exposes all SYSMOD artifacts as tools for AI agents (Claude, Cursor, GitHub Copilot, etc.)
+- 🧠 **SYSMOD AI Agent** — an LLM can autonomously query problem statements, contexts, stakeholders, requirements, feature trees, and more directly from the SysML v2 model
 
-- 🔌 **Connects to any SysML v2 API-compliant server** (e.g., SysML v2 Reference Implementation)
-- 📊 **SYSMOD Viewer** — browse projects, commits, and SYSMOD model content (problem statements, system idea, contexts, stakeholders, use cases, requirements, feature trees, and more)
-- 🧙 **SYSMOD Wizard** — step-by-step AI-assisted creation of new SysML v2 / SYSMOD models from scratch
-- 🤖 **OpenAI Integration** — AI-powered suggestions for problem statements, system requirements, stakeholders, and architecture
-- 📦 **Built on `mbse4u-sysml-helpers`** — reuses the [MBSE4U SysML v2 Python API helper library](https://pypi.org/project/mbse4u-sysml-helpers/)
+```
+┌─────────────────────┐   MCP (stdio/SSE)   ┌────────────────────────┐
+│  SYSMOD AI Agent    │ ─────────────────→  │  sysmod_mcp_server.py  │
+│ (Claude/Cursor/etc) │                     │  (FastMCP tools)       │
+└─────────────────────┘                     └───────────┬────────────┘
+                                                        │ HTTP REST
+                                            ┌───────────▼────────────┐
+          Browser ──────────────────────→   │  sysmod_api_server.py  │
+                                            │  (Flask REST API)      │
+                                            └───────────┬────────────┘
+                                                        │ SysML v2 API
+                                            ┌───────────▼────────────┐
+                                            │  SysML v2 Repository   │
+                                            └────────────────────────┘
+```
 
 ---
 
@@ -32,79 +44,94 @@ Key highlights:
 
 | Feature | Description |
 |---|---|
-| Project & Commit Selection | Browse SysML v2 projects and commits from a configured server |
-| SYSMOD Project Overview | Displays the SYSMOD Atlas status grid with model completeness indicators |
-| Problem Statement | Read and edit the problem statement directly via the SysML v2 API |
-| System Idea | Displays the system idea description and AI-generated image |
-| Context Diagrams | Visualizes Brownfield, System Idea, Requirement, Functional, Logical, and Product contexts |
-| Stakeholders | Lists project stakeholders with attributes |
+| Project & Commit Selection | Browse SysML v2 projects and commits |
+| SYSMOD Atlas | Completeness grid showing which artifacts exist |
+| Problem Statement | Read and edit via SysML v2 API |
+| System Idea | Displays description and AI-generated image |
+| Context Diagrams | Brownfield, System Idea, Requirement, Functional, Logical, Product |
+| Stakeholders | Lists stakeholders with attributes |
 | Use Cases | Displays use cases from the model |
-| Requirements | Lists system requirements with identifiers, priorities, and obligations |
-| Feature Tree | Renders the feature tree in UVL format with Mermaid graph visualization |
-| Feature Binding Matrix | Interactive matrix to manage feature binding dependencies |
-| Quality Checks | Automated checks for SYSMOD model completeness |
-| AI Suggestions | OpenAI GPT-4o–powered suggestions to refine the problem statement |
-| Cache Warmup | Bulk element loading to speed up subsequent queries |
+| Requirements | Lists system requirements with priorities and obligations |
+| Feature Tree | UVL format with Mermaid graph visualization |
+| Feature Binding Matrix | Interactive matrix for feature binding dependencies |
+| Quality Checks | Automated SYSMOD model completeness checks |
+| AI Suggestions | GPT-4o–powered suggestions to refine artifacts |
+| Cache Warmup | Bulk element loading to speed up queries |
 
 ### SYSMOD Wizard (`sysmod-wizard.html`)
 
-A guided, multi-step wizard for AI-assisted creation of new SYSMOD / SysML v2 models:
+AI-assisted multi-step creation of new SYSMOD / SysML v2 models:
 
 | Step | Name | Description |
 |---|---|---|
-| 1 | Project Setup | Define the system name and description; generates SysML v2 model scaffold |
-| 2 | Brownfield Analysis | Upload existing documents; AI extracts context and existing system information |
-| 3 | Problem Statement | Describe the problem; AI generates a concise problem statement |
-| 4 | Stakeholders | Identify stakeholders; AI suggests stakeholder attributes |
-| 5 | System Idea | Define the system idea; AI generates description and conceptual image |
-| 6 | System Requirements | Generate system requirements from prior context; AI outputs SysML v2 code |
-| 7 | Use Cases | Generate use case definitions; AI outputs SysML v2 code |
-| 8 | Product Architecture | Generate initial product architecture; AI outputs SysML v2 code |
+| 1 | Project Setup | Define system name/description; generates SysML v2 scaffold |
+| 2 | Brownfield Analysis | Upload documents; AI extracts existing system context |
+| 3 | Problem Statement | AI generates concise problem statement |
+| 4 | Stakeholders | AI suggests stakeholder attributes |
+| 5 | System Idea | AI generates description and conceptual image |
+| 6 | System Requirements | AI outputs SysML v2 requirements code |
+| 7 | Use Cases | AI outputs SysML v2 use case definitions |
+| 8 | Product Architecture | AI outputs initial product architecture code |
+
+### SYSMOD MCP Server (`sysmod_mcp_server.py`)
+
+Exposes 17 MCP tools — SYSMOD artifacts become directly queryable by any MCP-compatible AI agent:
+
+| Category | Tools |
+|---|---|
+| **Discovery** | `get_projects`, `get_commits`, `get_sysmod_projects`, `get_sysmod_project`, `get_element` |
+| **Overview** | `get_sysmod_atlas` |
+| **Artifacts** | `get_problem_statement`, `get_system_idea`, `get_system_context`, `get_stakeholders`, `get_requirements`, `get_use_cases`, `get_feature_tree`, `get_feature_bindings` |
+| **Quality** | `run_quality_checks` |
+| **Write** | `save_problem_statement` |
+| **Cache** | `warmup_cache` |
+
+**Example agent prompts once connected:**
+- *"Give me a summary of what this SYSMOD project is about."*
+- *"Run quality checks and tell me what's missing."*
+- *"Rewrite the problem statement following the 'How can we…' pattern and save it."*
+- *"Walk me through all system contexts from brownfield to product architecture."*
 
 ---
 
 ## Architecture
 
 ```
-sysmod-sysmlv2-api/
+sysmod-sysmlv2-api-mcp/
 ├── sysmod_api_server.py       # Main Flask application & REST API endpoints
-├── sysmod_api_helpers.py      # SYSMOD-specific helper functions (queries, parsing)
-├── pleml_api_server.py        # PLEML Flask Blueprint (feature tree & bindings endpoints)
-├── pleml_api_helpers.py       # PLEML helper functions (feature tree, feature bindings)
+├── sysmod_api_helpers.py      # SYSMOD-specific helper functions
+├── sysmod_mcp_server.py       # MCP server (wraps Flask API as MCP tools)
+├── pleml_api_server.py        # PLEML Flask Blueprint (feature tree & bindings)
+├── pleml_api_helpers.py       # PLEML helper functions
 ├── html/
-│   ├── index.html             # Project / Commit / SYSMOD Project selection page
+│   ├── index.html             # Project / Commit / SYSMOD Project selection
 │   ├── project.html           # SYSMOD Viewer dashboard
 │   └── sysmod-wizard.html     # AI-assisted model creation wizard
 ├── prompts/                   # AI prompt templates for wizard steps
-│   ├── sysmod-model-template.txt
-│   ├── brownfield-prompt.txt
-│   ├── problem-statement-prompt.txt
-│   ├── stakeholders-prompt.txt
-│   ├── system-idea-prompt.txt
-│   ├── system-requirements-prompt.txt
-│   ├── use-cases-prompt.txt
-│   └── product-arch-prompt.txt
-├── uploads/                   # Uploaded reference documents (per system name)
+├── uploads/                   # Uploaded reference documents (per system)
 ├── word/                      # Word macro templates
-└── .env                       # Environment variables (API keys, not tracked)
+├── .env.example               # Environment variable template
+└── requirements.txt
 ```
 
 ### Module Overview
 
 | Module | Role |
 |---|---|
-| `sysmod_api_server.py` | Main Flask app; mounts `pleml_blueprint` and serves all SYSMOD endpoints |
-| `sysmod_api_helpers.py` | SYSMOD model queries — problem statement, system idea, contexts, stakeholders, requirements, quality checks, etc. |
-| `pleml_api_server.py` | Flask Blueprint for all PLEML/feature endpoints; can also run standalone on port `5001` |
-| `pleml_api_helpers.py` | PLEML helper functions: feature tree (UVL), feature bindings, PLEML presence check |
+| `sysmod_api_server.py` | Main Flask app; mounts `pleml_blueprint`, serves all SYSMOD REST endpoints |
+| `sysmod_api_helpers.py` | SYSMOD model queries — problem statement, system idea, contexts, requirements, etc. |
+| `sysmod_mcp_server.py` | MCP server facade; translates MCP tool calls to Flask REST calls |
+| `pleml_api_server.py` | Flask Blueprint for all PLEML/feature endpoints; can run standalone on port 5001 |
+| `pleml_api_helpers.py` | Feature tree (UVL) and feature binding helpers |
 
 ---
 
 ## Prerequisites
 
 - **Python 3.8+**
-- A running **SysML v2 API server** (e.g., the [SysML v2 Reference Implementation](https://github.com/Systems-Modeling/SysML-v2-Release))
-- An **OpenAI API key** (optional, required only for AI-assisted wizard steps and AI suggestions)
+- **Node.js / npm** (required only for `mcp dev` inspector UI)
+- A running **SysML v2 API server** (e.g., [SysML v2 Reference Implementation](https://github.com/Systems-Modeling/SysML-v2-Release))
+- An **OpenAI API key** *(optional — required only for AI wizard steps and suggestions)*
 
 ---
 
@@ -113,124 +140,186 @@ sysmod-sysmlv2-api/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/MBSE4U/sysmod-sysmlv2-api.git
-cd sysmod-sysmlv2-api
+git clone https://github.com/MBSE4U/sysmod-sysmlv2-api-mcp.git
+cd sysmod-sysmlv2-api-mcp
 ```
 
-### 2. Install the MBSE4U SysML v2 helpers library
-
-This project depends on the [`mbse4u-sysml-helpers`](https://pypi.org/project/mbse4u-sysml-helpers/) Python package, which provides the low-level SysML v2 API client functions.
-
-```bash
-pip install mbse4u-sysml-helpers
-```
-
-### 3. Install remaining Python dependencies
-
-Install all required packages using the provided `requirements.txt`:
+### 2. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-To enable PDF and Word document uploads in the wizard, also install:
+This installs Flask, requests, python-dotenv, anytree, werkzeug, mbse4u-sysml-helpers, and **mcp[cli]** (the MCP server SDK).
 
+To enable PDF and Word document uploads in the wizard:
 ```bash
 pip install pypdf python-docx
 ```
 
-To enable AI features (OpenAI GPT-4o / DALL-E 3), install:
-
+To enable AI features (OpenAI GPT-4o / DALL-E 3):
 ```bash
 pip install openai
 ```
 
-### 4. Configure environment variables
-
-Copy the example environment file and fill in your values:
+### 3. Configure environment variables
 
 ```bash
 copy .env.example .env
 ```
 
-Then edit `.env`:
+Edit `.env`:
 
 ```env
+# OpenAI (optional)
 OPENAI_API_KEY=your_openai_api_key_here
+
+# MCP Server — URL of the running Flask server
+FLASK_BASE_URL=http://localhost:5000
+
+# Default SysML v2 context (set these for zero-config MCP tool calls)
+SYSML_SERVER_URL=http://localhost:9000
+SYSML_PROJECT_ID=<your-project-uuid>
+SYSML_COMMIT_ID=<your-commit-uuid>
+SYSML_SYSMOD_PROJECT_ID=<your-sysmod-project-element-uuid>
 ```
 
-> **Note:** The OpenAI API key can also be entered directly in the web UI within the wizard or viewer settings, without needing a `.env` file.
+> Setting the `SYSML_*` variables means the AI agent can call tools without needing to pass IDs every time.
 
 ---
 
 ## Usage
 
-### Start the server
+### Start the Flask server
 
 ```bash
 python sysmod_api_server.py
 ```
 
-The server starts on `http://localhost:5000` by default (Flask debug mode).
+Runs on `http://localhost:5000`. Open in browser to use the web UI.
 
-### Open the web UI
+---
 
-Navigate to `http://localhost:5000` in your browser.
+## MCP Server Setup
 
-1. **Enter the SysML v2 server URL** (e.g., `http://localhost:9000`)
-2. **Click "Get Projects"** to retrieve available projects from the server
-3. **Select a project** and **select a commit**
-4. **Select a SYSMOD project** — the viewer will open automatically
+The MCP server requires the Flask server to be running first.
 
-Or click **"Start Creation Wizard"** to create a new SYSMOD model from scratch.
+### Option A — stdio (Claude Desktop / Cursor / VS Code)
+
+Run the MCP server directly. It communicates via stdin/stdout with the AI client:
+
+```bash
+python sysmod_mcp_server.py
+```
+
+### Option B — SSE / HTTP (for testing with MCP Inspector)
+
+Start the MCP server in HTTP mode so the browser inspector can connect:
+
+```bash
+# SSE transport on port 8000
+python sysmod_mcp_server.py --transport sse --port 8000
+
+# Streamable HTTP transport on port 8000 (newer)
+python sysmod_mcp_server.py --transport streamable-http --port 8000
+```
+
+Then open the [MCP Inspector](https://inspector.tools.mcp.run/) in your browser, set the URL to `http://localhost:8000/sse` (or `/mcp` for streamable-http), and connect.
+
+### Option C — mcp dev inspector (requires uv + Node.js/npm)
+
+> [!NOTE]
+> This requires `uv` ([install](https://docs.astral.sh/uv/)) and `npm` to be installed and on PATH.
+
+**Windows — one-time setup:**
+```powershell
+# Install uv
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Add to PATH for this session (or add permanently via System Settings)
+$env:PATH += ";$env:LOCALAPPDATA\Programs\uv\bin"
+$env:PATH += ";$env:APPDATA\Python\Python313\Scripts"
+```
+
+**Launch inspector:**
+```powershell
+mcp dev sysmod_mcp_server.py --with requests --with python-dotenv
+```
+
+---
+
+## Register with Claude Desktop
+
+Add to `%APPDATA%\Claude\claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "sysmod": {
+      "command": "python",
+      "args": ["c:/path/to/sysmod-sysmlv2-api-mcp/sysmod_mcp_server.py"]
+    }
+  }
+}
+```
+
+> The server reads all configuration from `.env` automatically. Restart Claude Desktop after editing.
+
+---
+
+## Register with Cursor
+
+In **Cursor Settings → MCP Servers → Add**:
+
+| Field | Value |
+|---|---|
+| Command | `python` |
+| Args | `c:/path/to/sysmod-sysmlv2-api-mcp/sysmod_mcp_server.py` |
 
 ---
 
 ## API Endpoints
 
-The Flask server exposes the following REST API endpoints (all accept/return JSON unless noted):
+All Flask endpoints accept and return JSON (unless noted).
 
-### SYSMOD Endpoints (`sysmod_api_server.py`)
+### SYSMOD Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/projects` | List projects on a SysML v2 server |
 | `POST` | `/api/commits` | List commits for a project |
-| `POST` | `/api/cache/warmup` | Bulk-load elements into the in-memory cache |
+| `POST` | `/api/cache/warmup` | Bulk-load elements into cache |
 | `POST` | `/api/sysmod_projects` | List SYSMOD projects in a commit |
-| `POST` | `/api/sysmod_project` | Get SYSMOD project details (name, documentation) |
-| `POST` | `/api/element` | Get a generic model element by ID |
+| `POST` | `/api/sysmod_project` | Get SYSMOD project details |
+| `POST` | `/api/element` | Get a model element by ID |
 | `POST` | `/api/problem-statement` | Get the problem statement |
 | `POST` | `/api/problem-statement/save` | Save an updated problem statement |
-| `POST` | `/api/system-idea` | Get the system idea description |
-| `POST` | `/api/sysmod-context` | Get a SYSMOD context diagram (Brownfield, System, Functional, …) |
-| `POST` | `/api/requirements` | Get system requirements |
-| `POST` | `/api/usecases` | Get use cases |
+| `POST` | `/api/system-idea` | Get the system idea |
+| `POST` | `/api/sysmod-context` | Get a context diagram (Brownfield, System, Functional, …) |
+| `POST` | `/api/sysmod-requirements` | Get system requirements |
+| `POST` | `/api/sysmod-usecases` | Get use cases |
 | `POST` | `/api/stakeholders` | Get stakeholders |
-| `POST` | `/api/quality-checks` | Run SYSMOD model quality checks |
-| `POST` | `/api/sysmod-atlas` | Get SYSMOD Atlas status overview |
-| `POST` | `/api/ai-suggestion_problem_statement` | Get an AI-improved problem statement |
-| `POST` | `/api/wizard/project-setup` | Wizard Step 1 — generate SysML v2 project scaffold |
-| `GET`  | `/api/wizard/files` | List previously uploaded files for a system |
-| `POST` | `/api/wizard/brownfield` | Wizard Step 2 — brownfield analysis with AI |
+| `POST` | `/api/quality-checks` | Run model quality checks |
+| `POST` | `/api/sysmod-atlas` | Get SYSMOD Atlas completeness overview |
+| `POST` | `/api/ai-suggestion_problem_statement` | AI-improved problem statement |
+| `POST` | `/api/wizard/project-setup` | Wizard Step 1 — generate SysML v2 scaffold |
+| `GET` | `/api/wizard/files` | List previously uploaded files |
+| `POST` | `/api/wizard/brownfield` | Wizard Step 2 — brownfield analysis |
 | `POST` | `/api/wizard/problem` | Wizard Step 3 — problem statement generation |
 | `POST` | `/api/wizard/stakeholders` | Wizard Step 4 — stakeholder analysis |
-| `POST` | `/api/wizard/system-idea` | Wizard Step 5 — system idea generation with image |
-| `POST` | `/api/wizard/system-requirements` | Wizard Step 6 — system requirements generation |
+| `POST` | `/api/wizard/system-idea` | Wizard Step 5 — system idea generation |
+| `POST` | `/api/wizard/system-requirements` | Wizard Step 6 — requirements generation |
 | `POST` | `/api/wizard/use-cases` | Wizard Step 7 — use case generation |
-| `POST` | `/api/wizard/product-arch` | Wizard Step 8 — product architecture generation |
+| `POST` | `/api/wizard/product-arch` | Wizard Step 8 — product architecture |
 
-### PLEML Endpoints (`pleml_api_server.py`)
-
-These endpoints are provided by the `pleml_blueprint` Flask Blueprint and are registered in the main server. The `pleml_api_server.py` module can also be run **standalone** on port `5001` for PLEML-only deployments.
+### PLEML Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/check-pleml` | Check whether the project contains a PLEML feature model (`has_pleml`, `feature_tree_count`) |
-| `POST` | `/api/feature-bindings` | Get feature binding dependencies (annotated with `@FB`) |
+| `POST` | `/api/check-pleml` | Check if project contains a PLEML feature model |
+| `POST` | `/api/feature-bindings` | Get feature binding dependencies (`@FB`) |
 | `POST` | `/api/feature-bindings/toggle` | Create or delete a feature binding |
-| `POST` | `/api/feature-tree-uvl` | Get the UVL feature tree (from element annotated with `@featureTree`) |
-| `POST` | `/api/feature-tree-sysml` | Get the feature tree as a matrix + Mermaid graph (currently returns dummy data) |
+| `POST` | `/api/feature-tree-uvl` | Get the UVL feature tree |
+| `POST` | `/api/feature-tree-sysml` | Get feature tree as Mermaid graph |
 
 ---
 
@@ -238,14 +327,15 @@ These endpoints are provided by the `pleml_blueprint` Flask Blueprint and are re
 
 | Package | Purpose |
 |---|---|
-| [`mbse4u-sysml-helpers`](https://pypi.org/project/mbse4u-sysml-helpers/) | SysML v2 API client helpers (element queries, caching, metadata) |
-| `flask` | Web framework and REST API server |
-| `requests` | HTTP client for SysML v2 API communication |
+| [`mbse4u-sysml-helpers`](https://pypi.org/project/mbse4u-sysml-helpers/) | SysML v2 API client (element queries, caching, metadata) |
+| `flask` | Web framework and REST API |
+| `requests` | HTTP client for SysML v2 API |
 | `python-dotenv` | Load environment variables from `.env` |
 | `anytree` | Tree data structure for model traversal |
-| `openai` *(optional)* | GPT-4o and DALL-E 3 integration for AI features |
+| `mcp[cli]` | Model Context Protocol server SDK |
+| `openai` *(optional)* | GPT-4o and DALL-E 3 for AI features |
 | `pypdf` *(optional)* | PDF text extraction for document uploads |
-| `python-docx` *(optional)* | Word document text extraction for document uploads |
+| `python-docx` *(optional)* | Word document extraction for document uploads |
 
 ---
 
@@ -257,13 +347,13 @@ These endpoints are provided by the `pleml_blueprint` Flask Blueprint and are re
 
 ## License
 
-This project is licensed under the **Apache License 2.0**.
-See the [LICENSE](LICENSE) file for details.
+Licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.
 
 ---
 
 ## Related Projects
 
 - [SYSMOD Methodology](https://mbse4u.com/sysmod/) — The MBSE methodology this tool supports
-- [mbse4u-sysml-helpers on PyPI](https://pypi.org/project/mbse4u-sysml-helpers/) — The underlying SysML v2 Python API helper library
+- [mbse4u-sysml-helpers on PyPI](https://pypi.org/project/mbse4u-sysml-helpers/) — The underlying SysML v2 Python helper library
 - [SysML v2 Reference Implementation](https://github.com/Systems-Modeling/SysML-v2-Release) — The open-source SysML v2 API server
+- [Model Context Protocol](https://modelcontextprotocol.io/) — The MCP specification

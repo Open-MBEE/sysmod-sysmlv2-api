@@ -8,6 +8,10 @@ werkzeug>=2.3.0
 # SysML v2 API helpers (MBSE4U)
 mbse4u-sysml-helpers
 
+# MCP Server — Model Context Protocol (for sysmod_mcp_server.py)
+# Enables SYSMOD AI agents via Claude Desktop, Cursor, VS Code Copilot, etc.
+mcp[cli]>=1.0.0
+
 # Optional: AI features (OpenAI GPT-4o and DALL-E 3)
 # openai>=1.0.0
 
