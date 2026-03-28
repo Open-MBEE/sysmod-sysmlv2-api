@@ -1,0 +1,496 @@
+diff --git a/pleml_api_helpers.py b/pleml_api_helpers.py
+index cb29e17..ccf8f47 100644
+--- a/pleml_api_helpers.py
++++ b/pleml_api_helpers.py
+@@ -15,7 +15,7 @@
+ #    See the License for the specific language governing permissions and
+ #    limitations under the License.
+ 
+-import mbse4u_sysmlv2_api_helpers as mbse4u_sysmlv2
++import mbse4u_sysmlv2_helpers
+ 
+ 
+ # ---------------------------------------------------------------------------
+@@ -27,13 +27,13 @@ def get_feature_tree_uvl(server_url, project_id, commit_id, sysmod_project_id):
+     Retrieves the textual UVL representation of the Feature Tree.
+     """
+     print("Getting UVL feature tree")
+-    id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureTree'])
++    id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureTree'])
+     ft_id = id_map.get('featureTree')
+ 
+     if not ft_id:
+         return {"error": "Metadata 'featureTree' not found"}
+ 
+-    usage_map = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureTree': ft_id})
++    usage_map = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureTree': ft_id})
+     annotated_ids = usage_map.get('featureTree', [])
+ 
+     if not annotated_ids:
+@@ -42,7 +42,7 @@ def get_feature_tree_uvl(server_url, project_id, commit_id, sysmod_project_id):
+     annotated_id = annotated_ids[0]
+ 
+     # Get contained TextualRepresentation
+-    text_reps = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, annotated_id, 'TextualRepresentation')
++    text_reps = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, annotated_id, 'TextualRepresentation')
+     print(f"get_contained_elements: {len(text_reps)} matching elements found in 'TextualRepresentation'")
+     if text_reps:
+         return {"uvl_code": text_reps[0].get('body', '')}
+@@ -57,13 +57,13 @@ def check_pleml(server_url, project_id, commit_id):
+     Returns a dict with key 'has_pleml' (bool) and optional details.
+     """
+     print(f"check_pleml called for project {project_id} / commit {commit_id}")
+-    id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureTree'])
++    id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureTree'])
+     ft_id = id_map.get('featureTree')
+ 
+     if not ft_id:
+         return {"has_pleml": False, "reason": "Metadata definition 'featureTree' not found in model"}
+ 
+-    usage_map = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureTree': ft_id})
++    usage_map = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureTree': ft_id})
+     annotated_ids = usage_map.get('featureTree', [])
+ 
+     if not annotated_ids:
+@@ -80,7 +80,7 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
+     """
+     Retrieves the container for dependency relationships annotated with @featureBindings.
+     """
+-    fb_metadata_id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
++    fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
+     print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+     fb_id = fb_metadata_id_map.get('featureBindings')
+ 
+@@ -88,7 +88,7 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
+         print("MetadataDefinition 'featureBindings' not found.")
+         return []
+ 
+-    annotated_ids_map = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureBindings': fb_id})
++    annotated_ids_map = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureBindings': fb_id})
+     annotated_ids = annotated_ids_map.get('featureBindings', [])
+ 
+     if not annotated_ids:
+@@ -102,10 +102,10 @@ def get_feature_bindings(server_url, project_id, commit_id):
+     """
+     Retrieves dependency relationships annotated with @FB.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+ 
+     # 1. Find ID of MetadataDefinition "FB"
+-    fb_metadata_id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['FB'])
++    fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['FB'])
+     print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+     fb_id = fb_metadata_id_map.get('FB')
+ 
+@@ -114,7 +114,7 @@ def get_feature_bindings(server_url, project_id, commit_id):
+         return []
+ 
+     # 2. Find elements annotated with @FB
+-    annotated_ids_map = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'FB': fb_id})
++    annotated_ids_map = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'FB': fb_id})
+     annotated_ids = annotated_ids_map.get('FB', [])
+ 
+     if not annotated_ids:
+@@ -125,7 +125,7 @@ def get_feature_bindings(server_url, project_id, commit_id):
+ 
+     # 3. Process each annotated element
+     for element_id in annotated_ids:
+-        element = mbse4u_sysmlv2.get_element_fromAPI(query_url, element_id)
++        element = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, element_id)
+         if not element:
+             continue
+ 
+@@ -133,7 +133,7 @@ def get_feature_bindings(server_url, project_id, commit_id):
+         owner = element.get('owner')
+         if not owner:
+             continue
+-        feature_binding = mbse4u_sysmlv2.get_element_fromAPI(query_url, owner['@id'])
++        feature_binding = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, owner['@id'])
+         if not feature_binding:
+             continue
+ 
+@@ -146,13 +146,13 @@ def get_feature_bindings(server_url, project_id, commit_id):
+ 
+         if feature_binding.get('client'):
+             client_ref = feature_binding.get('client')[0]
+-            client_el = mbse4u_sysmlv2.get_element_fromAPI(query_url, client_ref['@id'])
++            client_el = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, client_ref['@id'])
+             if client_el:
+                 entry['client'] = {'name': client_el.get('name') or client_el.get('declaredName') or "Unknown", 'id': client_el.get('@id')}
+ 
+         if feature_binding.get('supplier'):
+             supplier_ref = feature_binding.get('supplier')[0]
+-            supplier_el = mbse4u_sysmlv2.get_element_fromAPI(query_url, supplier_ref['@id'])
++            supplier_el = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, supplier_ref['@id'])
+             if supplier_el:
+                 entry['supplier'] = {'name': supplier_el.get('name') or supplier_el.get('declaredName') or "Unknown", 'id': supplier_el.get('@id')}
+ 
+diff --git a/sysmod_api_helpers.py b/sysmod_api_helpers.py
+index 13cf015..8e34ab1 100644
+--- a/sysmod_api_helpers.py
++++ b/sysmod_api_helpers.py
+@@ -18,26 +18,26 @@
+ import sys
+ import os
+ 
+-import mbse4u_sysmlv2_api_helpers as mbse4u_sysmlv2
++import mbse4u_sysmlv2_helpers
+ 
+ def get_sysmod_projects(server_url, project_id, commit_id):
+     """
+     Retrieves list of projects annotated with @project metadata.
+     """
+ 
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
+-    metadata_definition_ids = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['project'])
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
++    metadata_definition_ids = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['project'])
+     print(f"Found {len(metadata_definition_ids)} metadata definition IDs.")
+     project_ids = []
+     if metadata_definition_ids:
+-        metadata_usages = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, metadata_definition_ids)
++        metadata_usages = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, metadata_definition_ids)
+         print(f"Found {len(metadata_usages)} metadata usages.")
+         project_ids = metadata_usages.get('project', [])
+         print(f"Found {len(project_ids)} project IDs")
+     if not project_ids:
+-        occurrence_definitions = mbse4u_sysmlv2.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'OccurrenceDefinition')
++        occurrence_definitions = mbse4u_sysmlv2_helpers.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'OccurrenceDefinition')
+         print(f"Found {len(occurrence_definitions)} OccurrenceDefinitions")
+-        project_ids = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, occurrence_definitions, 'SYSMOD::Project')               
++        project_ids = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, occurrence_definitions, 'SYSMOD::Project')               
+         print(f"Found {len(project_ids)} project IDs")
+     
+     simplified_projects = []
+@@ -47,7 +47,7 @@ def get_sysmod_projects(server_url, project_id, commit_id):
+         if isinstance(item, dict):
+             el = item
+         else:
+-            el = mbse4u_sysmlv2.get_element_fromAPI(query_url, item)
++            el = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, item)
+             
+         if el:
+             simplified_projects.append({'name': el.get('declaredName'), '@id': el.get('@id')})
+@@ -59,15 +59,15 @@ def get_sysmod_project(server_url, project_id, commit_id, element_id):
+     """
+     Retrieves the project documentation element.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+     
+     # Get Element
+-    element = mbse4u_sysmlv2.get_element_fromAPI(query_url, element_id)
++    element = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, element_id)
+     if not element:
+         raise ValueError(f"Element {element_id} not found.")
+ 
+     # Get Documentation via Helper
+-    doc_text = mbse4u_sysmlv2.get_element_documentation(server_url, project_id, commit_id, element_id)
++    doc_text = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, element_id)
+     
+     response_data = {}
+     response_data['name'] = element.get('declaredName')
+@@ -80,22 +80,22 @@ def get_problem_statement(server_url, project_id, commit_id, element_id):
+     """
+     Retrieves the problem statement documentation element.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+ 
+     # 1. Get RequirementUsages
+-    concern_usages = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, element_id, 'ConcernUsage')
++    concern_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, element_id, 'ConcernUsage')
+     print(f"Found {len(concern_usages)} ConcernUsages")
+-    req_usages = mbse4u_sysmlv2.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'RequirementUsage')
++    req_usages = mbse4u_sysmlv2_helpers.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'RequirementUsage')
+     print(f"Found {len(req_usages)} RequirementUsages")
+ 
+     # 2. Find one specializing 'problemStatement'
+-    problem_reqs = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, concern_usages, 'SYSMOD::Project::problemStatement')
++    problem_reqs = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, concern_usages, 'SYSMOD::Project::problemStatement')
+     if not problem_reqs:
+-        problem_reqs = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, req_usages, 'SYSMOD::Project::problemStatement')
++        problem_reqs = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, req_usages, 'SYSMOD::Project::problemStatement')
+     
+     if problem_reqs:
+         # 3. Get Documentation
+-        doc_text = mbse4u_sysmlv2.get_element_documentation(server_url, project_id, commit_id, problem_reqs[0]['@id'])
++        doc_text = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, problem_reqs[0]['@id'])
+         if doc_text: 
+             return {'id': problem_reqs[0]['@id'], 'body': doc_text}
+         
+@@ -105,24 +105,24 @@ def save_problem_statement(server_url, project_id, commit_id, problem_statement_
+     """
+     Saves the problem statement documentation element.
+     """
+-    return mbse4u_sysmlv2.update_model_element(server_url, project_id, commit_id, problem_statement_id, "body", body)
++    return mbse4u_sysmlv2_helpers.update_model_element(server_url, project_id, commit_id, problem_statement_id, "body", body)
+ 
+ def get_system_idea(server_url, project_id, commit_id, element_id):
+     """
+     Retrieves the system idea documentation.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+     
+     # 1. Find PartUsage specialized from 'systemIdeaContext'
+-    part_usages = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, element_id, 'SYSMOD::Project::PartUsage')
+-    context_parts = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, part_usages, 'SYSMOD::Project::systemIdeaContext')
++    part_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, element_id, 'SYSMOD::Project::PartUsage')
++    context_parts = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, part_usages, 'SYSMOD::Project::systemIdeaContext')
+     if len(context_parts) > 1:
+         print(f"Warning: Multiple elements specializing 'systemIdeaContext' found. Using the first one.")
+     context_part = context_parts[0] if context_parts else None
+     
+     if context_part:
+         # 2. Find 'systemOfInterest' usage inside context
+-        sub_parts = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, context_part['@id'], 'SYSMOD::Project::PartUsage')
++        sub_parts = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, context_part['@id'], 'SYSMOD::Project::PartUsage')
+         # Here we look for name 'systemOfInterest' directly, or specialization?
+         # User requirement was: "owns another part usage with name systemOfInterest"
+         # So name match is sufficient.
+@@ -131,19 +131,19 @@ def get_system_idea(server_url, project_id, commit_id, element_id):
+         
+         # If not found by name, try specialization just in case?
+         if not system_of_interest:
+-             found_elements = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, sub_parts, 'SYSMOD::Project::systemOfInterest')
++             found_elements = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, sub_parts, 'SYSMOD::Project::systemOfInterest')
+              system_of_interest = found_elements[0] if found_elements else None
+ 
+         if system_of_interest:
+              # 3. Get Documentation
+-             doc_text = mbse4u_sysmlv2.get_element_documentation(server_url, project_id, commit_id, system_of_interest['@id'])
++             doc_text = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, system_of_interest['@id'])
+              if doc_text:
+                  return {'body': doc_text}
+              else:
+                 print(f"Try to find Documentation via Definition: {system_of_interest.get('definition')[0]['@id']}")
+-                definition = mbse4u_sysmlv2.get_element_fromAPI(query_url, system_of_interest.get('definition')[0]['@id'])
++                definition = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, system_of_interest.get('definition')[0]['@id'])
+                 if definition:
+-                    doc_text_def = mbse4u_sysmlv2.get_element_documentation(server_url, project_id, commit_id, definition['@id'])
++                    doc_text_def = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, definition['@id'])
+                     if doc_text_def:
+                         return {'body': doc_text_def}             
+ 
+@@ -156,12 +156,12 @@ def get_context(server_url, project_id, commit_id, sysmod_project_id, context_ty
+     Retrieves the context information.
+     Returns { context, system, actors }
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
+-    sysmod_project = mbse4u_sysmlv2.get_element_fromAPI(query_url, sysmod_project_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
++    sysmod_project = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, sysmod_project_id)
+     print(f"ownedPart: {sysmod_project.get('ownedPart')}")
+     part_usages_ids = [p['@id'] for p in sysmod_project.get('ownedPart', [])]
+-    part_usages = mbse4u_sysmlv2.get_elements_fromAPI(query_url, part_usages_ids)
+-    found_contexts = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, part_usages, context_type, 'PartUsage')
++    part_usages = mbse4u_sysmlv2_helpers.get_elements_fromAPI(query_url, part_usages_ids)
++    found_contexts = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, part_usages, context_type, 'PartUsage')
+     context_part = found_contexts[0] if found_contexts else None
+     
+     if not context_part:
+@@ -184,17 +184,17 @@ def get_context_system(server_url, project_id, commit_id, context_part):
+     Returns system of interest part usage
+     """
+     print(f"get_context_system called with context_id: {server_url}/projects/{project_id}/commits/{commit_id}/elements/{context_part['@id']}")
+-    context_parts = mbse4u_sysmlv2.get_owned_usages(server_url, project_id, commit_id, context_part, 'ownedPart')
++    context_parts = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, context_part, 'ownedPart')
+     print(f"Found {len(context_parts)} parts in context")
+-    system_of_interest = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, context_parts, 'SYSMOD::SystemContext::systemOfInterest')
++    system_of_interest = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, context_parts, 'SYSMOD::SystemContext::systemOfInterest')
+     system_of_interest = system_of_interest[0] if system_of_interest else None
+     system_id = ""
+     if system_of_interest:
+         system_id = system_of_interest['@id']
+     else:
+         return None 
+-    system = mbse4u_sysmlv2.get_element_fromAPI(mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id), system_id)
+-    system['parts'] = mbse4u_sysmlv2.get_owned_usages(server_url, project_id, commit_id, system, 'ownedPart')    
++    system = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), system_id)
++    system['parts'] = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, system, 'ownedPart')    
+     return system
+ 
+ 
+@@ -204,9 +204,9 @@ def get_context_actors(server_url, project_id, commit_id, context_part):
+     Returns actors part usages
+     """
+     print(f"get_context_actors called with context_id: {server_url}/{project_id}/{commit_id}/{context_part['@id']}")
+-    context_parts = mbse4u_sysmlv2.get_owned_usages(server_url, project_id, commit_id, context_part, 'ownedPart')
++    context_parts = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, context_part, 'ownedPart')
+     print(f"Found {len(context_parts)} parts in context")
+-    actors = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, context_parts, 'SYSMOD::SystemContext::actors')
++    actors = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, context_parts, 'SYSMOD::SystemContext::actors')
+    
+     return actors
+ 
+@@ -215,16 +215,16 @@ def get_stakeholders(server_url, project_id, commit_id, sysmod_project_id):
+     """
+     Retrieves all stakeholders and their attributes.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+     
+     # Let's get 'PartUsage' from root.
+     # root_parts = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'PartUsage')
+     # project_stakeholders = mbse4u_sysmlv2.get_elements_byProperty_fromAPI(server_url, project_id, commit_id, 'qualifiedName', 'SYSMOD::Project::projectStakeholders')
+     # project_stakeholders = project_stakeholders[0] if project_stakeholders else None
+     
+-    sysmod_project = mbse4u_sysmlv2.get_element_fromAPI(query_url, sysmod_project_id)
+-    sysmod_project_partusages = mbse4u_sysmlv2.get_owned_usages(server_url, project_id, commit_id, sysmod_project, 'ownedPart')
+-    stakeholder_part_usages = mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, sysmod_project_partusages, 'SYSMOD::Project::projectStakeholders', 'PartUsage')
++    sysmod_project = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, sysmod_project_id)
++    sysmod_project_partusages = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, sysmod_project, 'ownedPart')
++    stakeholder_part_usages = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, sysmod_project_partusages, 'SYSMOD::Project::projectStakeholders', 'PartUsage')
+     print(f"\n\nstakeholder_features: {len(stakeholder_part_usages)}\n\n")
+     return None
+     stakeholders = []
+@@ -233,22 +233,22 @@ def get_stakeholders(server_url, project_id, commit_id, sysmod_project_id):
+     # Check root parts and their children (1 level down)
+     for p in root_parts:
+         candidates.append(p)
+-        children = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, p['@id'], 'PartUsage')
++        children = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, p['@id'], 'PartUsage')
+         candidates.extend(children)
+ 
+     for p in candidates:
+-        if mbse4u_sysmlv2.check_specialization_hierarchy(query_url, p, project_stakeholders, "SYSMOD::Project::projectStakeholders"):
++        if mbse4u_sysmlv2_helpers.check_specialization_hierarchy(query_url, p, project_stakeholders, "SYSMOD::Project::projectStakeholders"):
+             print(f"Found Stakeholder: {p.get('name')} {p.get('@id')}")
+                 
+             # Extract attributes
+             # We need helper to extract specific attrs: risk, effort, priority, contact, categories
+             attributes = {
+                 'name': p.get('name'),
+-                'description': mbse4u_sysmlv2.get_element_documentation(server_url, project_id, commit_id, p.get('@id')), # Generic Helper
+-                'contact': mbse4u_sysmlv2.get_feature_value(server_url, project_id, commit_id, p, 'contact') or "",
+-                'risk': mbse4u_sysmlv2.get_feature_value(server_url, project_id, commit_id, p, 'risk') or "unknown",
+-                'effort': mbse4u_sysmlv2.get_feature_value(server_url, project_id, commit_id, p, 'effort') or "unknown",
+-                'categories': mbse4u_sysmlv2.get_feature_value(server_url, project_id, commit_id, p, 'categories') or []
++                'description': mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, p.get('@id')), # Generic Helper
++                'contact': mbse4u_sysmlv2_helpers.get_feature_value(server_url, project_id, commit_id, p, 'contact') or "",
++                'risk': mbse4u_sysmlv2_helpers.get_feature_value(server_url, project_id, commit_id, p, 'risk') or "unknown",
++                'effort': mbse4u_sysmlv2_helpers.get_feature_value(server_url, project_id, commit_id, p, 'effort') or "unknown",
++                'categories': mbse4u_sysmlv2_helpers.get_feature_value(server_url, project_id, commit_id, p, 'categories') or []
+             }
+             stakeholders.append(attributes)
+             
+@@ -258,10 +258,10 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
+     """
+     Retrieves container for dependency relationships annotated with @FB.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+     
+     # 1. Find ID of MetadataDefinition "featureBindings"
+-    fb_metadata_id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
++    fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
+     print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+     fb_id = fb_metadata_id_map.get('featureBindings')
+     
+@@ -270,7 +270,7 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
+         return []
+ 
+     # 2. Find elements annotated with @FB
+-    annotated_ids_map = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureBindings': fb_id})
++    annotated_ids_map = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'featureBindings': fb_id})
+     annotated_ids = annotated_ids_map.get('featureBindings', [])
+     
+     if not annotated_ids:
+@@ -283,10 +283,10 @@ def get_feature_bindings(server_url, project_id, commit_id):
+     """
+     Retrieves dependency relationships annotated with @FB.
+     """
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+     
+     # 1. Find ID of MetadataDefinition "FB"
+-    fb_metadata_id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['FB'])
++    fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['FB'])
+     print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+     fb_id = fb_metadata_id_map.get('FB')
+     
+@@ -295,7 +295,7 @@ def get_feature_bindings(server_url, project_id, commit_id):
+         return []
+ 
+     # 2. Find elements annotated with @FB
+-    annotated_ids_map = mbse4u_sysmlv2.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'FB': fb_id})
++    annotated_ids_map = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(server_url, project_id, commit_id, {'FB': fb_id})
+     annotated_ids = annotated_ids_map.get('FB', [])
+     
+     if not annotated_ids:
+@@ -306,13 +306,13 @@ def get_feature_bindings(server_url, project_id, commit_id):
+     
+     # 3. Process each annotated element
+     for element_id in annotated_ids:
+-        element = mbse4u_sysmlv2.get_element_fromAPI(query_url, element_id)
++        element = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, element_id)
+         if not element: continue
+         
+         # Owner should be a dependency
+         owner = element.get('owner')
+         if not owner: continue
+-        feature_binding = mbse4u_sysmlv2.get_element_fromAPI(query_url, owner['@id'])
++        feature_binding = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, owner['@id'])
+         if not feature_binding: continue
+ 
+         entry = {
+@@ -324,13 +324,13 @@ def get_feature_bindings(server_url, project_id, commit_id):
+         
+         if feature_binding.get('client'):
+              client_ref = feature_binding.get('client')[0]
+-             client_el = mbse4u_sysmlv2.get_element_fromAPI(query_url, client_ref['@id'])
++             client_el = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, client_ref['@id'])
+              if client_el: 
+                  entry['client'] = {'name': client_el.get('name') or client_el.get('declaredName') or "Unknown", 'id': client_el.get('@id')}
+ 
+         if feature_binding.get('supplier'):
+              supplier_ref = feature_binding.get('supplier')[0]
+-             supplier_el = mbse4u_sysmlv2.get_element_fromAPI(query_url, supplier_ref['@id'])
++             supplier_el = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, supplier_ref['@id'])
+              if supplier_el: 
+                  entry['supplier'] = {'name': supplier_el.get('name') or supplier_el.get('declaredName') or "Unknown", 'id': supplier_el.get('@id')}
+ 
+@@ -343,7 +343,7 @@ def create_feature_binding(server_url, project_id, commit_id, client_id, supplie
+     Creates a new Dependency from client_id to supplier_id and annotates it with @FB.
+     """
+     print(f"Creating Feature Binding between {client_id} and {supplier_id}")
+-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
++    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+     
+     feature_bindings_containers = get_feature_bindings_container(server_url, project_id, commit_id)
+     if not feature_bindings_containers:
+@@ -366,7 +366,7 @@ def get_feature_tree_uvl(server_url, project_id, commit_id, sysmod_project_id):
+     # Based on previous context, we look for MetadataUsage of 'featureTree' (annotated element)
+     
+     print("Getting UVL feature tree")   
+-    id_map = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureTree'])
++    id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureTree'])
+     ft_id = id_map.get('featureTree')
+     
+     if not ft_id:
+diff --git a/sysmod_api_server.py b/sysmod_api_server.py
+index 4ed0014..9883fd5 100644
+--- a/sysmod_api_server.py
++++ b/sysmod_api_server.py
+@@ -33,9 +33,8 @@ from dotenv import load_dotenv
+ 
+ load_dotenv() # Load environment variables from .env file
+ 
+-
+ import sysmod_api_helpers 
+-import mbse4u_sysmlv2_api_helpers as mbse4u_sysmlv2
++import mbse4u_sysmlv2_helpers
+ from enum import Enum
+ from pleml_api_server import pleml_blueprint, init_pleml_cache
+ 
+@@ -128,7 +127,7 @@ def api_cache_warmup():
+     if not all([server_url, project_id, commit_id]):
+         raise ValueError("Required parameters missing.")
+         
+-    count = mbse4u_sysmlv2.load_model_cache(server_url, project_id, commit_id, page_size)
++    count = mbse4u_sysmlv2_helpers.load_model_cache(server_url, project_id, commit_id, page_size)
+     return jsonify({"status": "success", "cached_elements": count})
+ 
+ #
