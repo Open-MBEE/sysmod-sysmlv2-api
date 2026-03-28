@@ -2,7 +2,7 @@ package {name} {{
     private import SYSMOD::*;
 
     #project occurrence def {name}_Project {{
-        doc /* {description} */
+        doc purpose /* {description} */
 
         part {name_lower}_brownfield_context : {name}_Brownfield_Package::{name}_Brownfield_Context :>> brownfieldSystemContext;
         concern :>> problemStatement {{

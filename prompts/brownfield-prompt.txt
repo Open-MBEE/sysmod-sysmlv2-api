@@ -4,8 +4,6 @@ The brownfield system describes the system that is already set at the beginning 
 Actors of the system are external entities which are not part of the system. They can be human users, other systems, or the environment.
 
 # Naming & Syntax Rules
-
-# Naming & Syntax Rules
 1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
 2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
 3. **Casing:** 
@@ -13,6 +11,7 @@ Actors of the system are external entities which are not part of the system. The
    - Usages (part, requirement) must use **lowerCamelCase**.
 4. **SysML Syntax:**
    - There is never a semicolon after a closing curly bracket "}}".
+   - A short name in SysML v2, which is also used for a concern or requirement identifier, must be enclosed in "<>". If the identifier contains any characters other than letters and numbers, it must be enclosed in "<'identifier'>" instead of "<identifier>"  
 
 
 # Step-by-Step Instructions
