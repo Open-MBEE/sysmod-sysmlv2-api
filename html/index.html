@@ -563,6 +563,8 @@ limitations under the License.
 
         function storeManualProjectId() {
             const projectId = document.getElementById('manual_project_id').value;
+            // Clear dropdown selection so the manual ID takes precedence
+            document.getElementById('project_list').value = '';
             const display = document.getElementById('selected_project_display');
             display.textContent = `Selected Project ID: ${projectId}`;
             display.style.display = projectId ? 'block' : 'none';

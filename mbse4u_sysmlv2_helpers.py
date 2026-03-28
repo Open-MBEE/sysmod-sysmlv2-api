@@ -481,16 +481,23 @@ def get_elements_byKind_fromAPI(server_url: str, project_id: str, commit_id: str
     query_input = {
         '@type': 'Query',
         'where': {
-            '@type': 'PrimitiveConstraint',
-            'inverse': False,
-            'operator': '=',
-            'property': '@type',
-            'value': [f"{kind}"]
+            '@type': 'CompositeConstraint',
+            'operator': 'and',
+            'constraint': [
+                {        
+                    '@type': 'PrimitiveConstraint',
+                    'inverse': False,
+                    'operator': '=',
+                    'property': '@type',
+                    'value': [f"{kind}"]
+                }
+            ]
         }
     }
     print(f"Query input: {query_input}")
     try:
         query_response = session.post(query_url, json=query_input)
+        print(f"Query response: {query_response}")
         _check_response(query_response, query_url)
         return query_response.json()
     except SysMLV2Error:

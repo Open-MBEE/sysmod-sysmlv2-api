@@ -558,6 +558,7 @@ def get_sysmod_usecases(server_url, project_id, commit_id, sysmod_project_id    
             print(f"Found use case: {use_case.get('name')}")    
     else:
         print("No use cases found")
+        return None
     
     use_cases_json = []
     for use_case in use_cases:
