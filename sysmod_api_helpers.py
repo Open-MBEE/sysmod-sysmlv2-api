@@ -22,11 +22,10 @@ import mbse4u_sysmlv2_api_helpers as mbse4u_sysmlv2
 
 def get_sysmod_projects(server_url, project_id, commit_id):
     """
-    Retrieves list of projects annotated with @project metadata.
+    Retrieves list of SYSMOD concepts with metadata concept_name and concept_kind 
     """
 
-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
-    metadata_definition_ids = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['project'])
+    metadata_definition_ids = mbse4u_sysmlv2.get_metadata_ids_by_name(server_url, project_id, commit_id, ['SYSMOD::Project'])
     print(f"Found {len(metadata_definition_ids)} metadata definition IDs.")
     project_ids = []
     if metadata_definition_ids:
@@ -47,13 +46,13 @@ def get_sysmod_projects(server_url, project_id, commit_id):
         if isinstance(item, dict):
             el = item
         else:
+            query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
             el = mbse4u_sysmlv2.get_element_fromAPI(query_url, item)
             
         if el:
             simplified_projects.append({'name': el.get('declaredName'), '@id': el.get('@id')})
 
     return simplified_projects
-
 
 def get_sysmod_project(server_url, project_id, commit_id, element_id):
     """
