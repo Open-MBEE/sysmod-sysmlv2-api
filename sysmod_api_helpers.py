@@ -147,7 +147,6 @@ def get_full_context(server_url, project_id, commit_id, sysmod_project_id, conte
     Retrieves the context information.
     Returns { context, system, actors }
     """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     context_part = get_context_part(server_url, project_id, commit_id, sysmod_project_id, context_type) 
     
     if not context_part:
