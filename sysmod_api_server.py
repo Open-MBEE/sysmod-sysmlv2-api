@@ -529,7 +529,7 @@ def api_sysmod_atlas():
          return jsonify({"error": "Missing parameters"}), 400
 
     print(f"Getting SYSMOD atlas for project {sysmod_project_id}")
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+    mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     atlas = {
         "FEATURE": False,
