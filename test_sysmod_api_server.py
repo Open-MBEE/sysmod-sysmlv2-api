@@ -3,6 +3,10 @@ from unittest.mock import patch, MagicMock
 from sysmod_api_server import app
 import pleml_api_server
 
+TEST_SERVER_URL = "TBD"
+TEST_PROJECT_ID = "TBD"
+TEST_COMMIT_ID = "TBD"
+
 @pytest.fixture
 def client():
     app.config['TESTING'] = True
@@ -21,9 +25,9 @@ def test_check_pleml_success(client):
         mock_check.return_value = {"has_pleml": True, "feature_tree_count": 1}
 
         response = client.post('/api/check-pleml', json={
-            "server_url": "http://127.0.0.1:5000",
-            "project_id": "793eacde-a318-435d-9743-6806b98a2d00",
-            "commit_id": "1555dc42-b104-4b1e-8d69-7a30efea7946"
+            "server_url": TEST_SERVER_URL,
+            "project_id": TEST_PROJECT_ID,
+            "commit_id": TEST_COMMIT_ID
         })
 
         assert response.status_code == 200
@@ -36,9 +40,9 @@ def test_check_pleml_no_pleml(client):
         mock_check.return_value = {"has_pleml": False, "reason": "No elements annotated with @featureTree found"}
 
         response = client.post('/api/check-pleml', json={
-            "server_url": "http://127.0.0.1:5000",
-            "project_id": "793eacde-a318-435d-9743-6806b98a2d00",
-            "commit_id": "1555dc42-b104-4b1e-8d69-7a30efea7946"
+            "server_url": TEST_SERVER_URL,
+            "project_id": TEST_PROJECT_ID,
+            "commit_id": TEST_COMMIT_ID
         })
 
         assert response.status_code == 200
@@ -48,8 +52,8 @@ def test_check_pleml_no_pleml(client):
 def test_check_pleml_missing_params(client):
     """Test the /api/check-pleml endpoint with missing parameters."""
     response = client.post('/api/check-pleml', json={
-        "server_url": "http://127.0.0.1:5000",
-        "project_id": "793eacde-a318-435d-9743-6806b98a2d00",
+        "server_url": TEST_SERVER_URL,
+        "project_id": TEST_PROJECT_ID,
         # missing commit_id
     })
 
@@ -66,9 +70,9 @@ def test_check_pleml_cached(client):
 
         # First call
         response1 = client.post('/api/check-pleml', json={
-            "server_url": "http://sysml2.intercax.com:9000",
-            "project_id": "793eacde-a318-435d-9743-6806b98a2d00",
-            "commit_id": "1555dc42-b104-4b1e-8d69-7a30efea7946"
+            "server_url": TEST_SERVER_URL,
+            "project_id": TEST_PROJECT_ID,
+            "commit_id": TEST_COMMIT_ID
         })
         assert response1.status_code == 200
 
