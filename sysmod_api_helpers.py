@@ -66,6 +66,7 @@ def get_problem_statement(server_url, project_id, commit_id, element_id):
     """
     Retrieves the problem statement documentation element.
     """
+
     # 1. Get RequirementUsages
     concern_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, element_id, 'ConcernUsage')
     print(f"Found {len(concern_usages)} ConcernUsages")
@@ -146,7 +147,6 @@ def get_full_context(server_url, project_id, commit_id, sysmod_project_id, conte
     Retrieves the context information.
     Returns { context, system, actors }
     """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     context_part = get_context_part(server_url, project_id, commit_id, sysmod_project_id, context_type) 
     
     if not context_part:
@@ -232,7 +232,6 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
     """
     Retrieves container for dependency relationships annotated with @FB.
     """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     # 1. Find ID of MetadataDefinition "featureBindings"
     fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
@@ -317,7 +316,6 @@ def create_feature_binding(server_url, project_id, commit_id, client_id, supplie
     Creates a new Dependency from client_id to supplier_id and annotates it with @FB.
     """
     print(f"Creating Feature Binding between {client_id} and {supplier_id}")
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     feature_bindings_containers = get_feature_bindings_container(server_url, project_id, commit_id)
     if not feature_bindings_containers:
