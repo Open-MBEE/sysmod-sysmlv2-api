@@ -5,13 +5,13 @@ The stakeholder needs are kind of requirements given by the stakeholders. The sy
 
 # Naming & Syntax Rules
 1. **Quoting:** If a name contains spaces or special characters (other than underscores), it MUST be enclosed in single quotes (e.g., 'System User').
-2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes..
+2. **Identifier**: In particular, human readable identifiers which are modeled as short names of concerns and requirements, for example, must be encoded in single quotes if they contain dashes.
 3. **Casing:** 
    - Definitions (part def, requirement def) must use **UpperCamelCase**.
    - Usages (part, requirement) must use **lowerCamelCase**.
 4. **SysML Syntax:**
    - There is never a semicolon after a closing curly bracket "}}".
-   - An short name in SysML v2 which is also used for concern or requirement identifier must be enclosed in "<>". If the identifier contains any other characters than letters and numbers, it must be enclosed in "<'identifier'>" instead of "<identifier>"  
+   - A short name in SysML v2, which is also used for a concern or requirement identifier, must be enclosed in "<>". If the identifier contains any characters other than letters and numbers, it must be enclosed in "<'identifier'>" instead of "<identifier>"  
 
 # Step-by-Step Instructions
 

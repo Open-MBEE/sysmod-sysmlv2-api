@@ -33,9 +33,8 @@ from dotenv import load_dotenv
 
 load_dotenv() # Load environment variables from .env file
 
-
 import sysmod_api_helpers 
-import mbse4u_sysmlv2_api_helpers as mbse4u_sysmlv2
+import mbse4u_sysmlv2_helpers
 from enum import Enum
 from pleml_api_server import pleml_blueprint, init_pleml_cache
 
@@ -128,7 +127,7 @@ def api_cache_warmup():
     if not all([server_url, project_id, commit_id]):
         raise ValueError("Required parameters missing.")
         
-    count = mbse4u_sysmlv2.load_model_cache(server_url, project_id, commit_id, page_size)
+    count = mbse4u_sysmlv2_helpers.load_model_cache(server_url, project_id, commit_id, page_size)
     return jsonify({"status": "success", "cached_elements": count})
 
 #
@@ -146,7 +145,7 @@ def api_projects():
     page_size = input_data.get('page_size', 256)
 
     # Call the utility function
-    projects = mbse4u_sysmlv2.get_projects(server_url, page_size)
+    projects = mbse4u_sysmlv2_helpers.get_projects(server_url, page_size)
     print(f"{len(projects)} projects found.")
     return jsonify(projects)
 
@@ -164,7 +163,7 @@ def api_commits():
     project_id = input_data.get('project_id', "").split(' ')[0]  # Safely split and handle edge cases
 
     # Fetch commits using the utility function
-    commits = mbse4u_sysmlv2.get_commits(server_url, project_id)
+    commits = mbse4u_sysmlv2_helpers.get_commits(server_url, project_id)
     print(f"{len(commits)} commits found.")
     return jsonify(commits)
 
@@ -239,11 +238,11 @@ def api_element():
         raise ValueError("server_url, project_id, commit_id, and element_id are required.")
 
     query_url = f"{server_url}/projects/{project_id}/commits/{commit_id}"
-    element = mbse4u_sysmlv2.get_element_fromAPI(query_url, element_id)
+    element = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, element_id)
     
     # Enrich with documentation if not present as a property or object
     if element and ('documentation' not in element):
-        doc_text = mbse4u_sysmlv2.get_element_documentation(server_url, project_id, commit_id, element_id)
+        doc_text = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, element_id)
         if doc_text:
             element['documentation'] = doc_text
     
@@ -300,7 +299,7 @@ def api_save_problem_statement():
     print(f"Would save new problem statement: '{new_text}' to project {sysmod_project_id}")
     problem_stmt = sysmod_api_helpers.get_problem_statement(server_url, project_id, commit_id, sysmod_project_id)
     print(f"Current problem statement: '{problem_stmt}'")
-    new_commit_id = mbse4u_sysmlv2.update_model_element(server_url, project_id, commit_id, problem_stmt.get('id'), "body", new_text)
+    new_commit_id = mbse4u_sysmlv2_helpers.update_model_element(server_url, project_id, commit_id, problem_stmt.get('id'), "body", new_text)
     print(f"New commit ID: {new_commit_id}")
     return jsonify({"status": "success", "message": "Problem statement saved (simulation).", "commit_id": new_commit_id})
 
@@ -351,7 +350,7 @@ def api_context():
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         raise ValueError("Required parameters missing.")
 
-    context = sysmod_api_helpers.get_context(server_url, project_id, commit_id, sysmod_project_id, SysmodContextKinds[context_type].value)
+    context = sysmod_api_helpers.get_full_context(server_url, project_id, commit_id, sysmod_project_id, SysmodContextKinds[context_type].value)
     SYSMOD_CACHE[context_type] = context
     return jsonify(context)
 
@@ -375,6 +374,27 @@ def api_requirements():
     requirements = sysmod_api_helpers.get_sysmod_requirements(server_url, project_id, commit_id, sysmod_project_id)
     
     return jsonify(requirements)
+
+#
+# Get Needs
+#
+@app.route('/get_needs', methods=['POST'])
+@handle_errors
+def api_needs():
+    input_data = request.json
+    print(f"/get_needs called with data: {input_data}")
+    
+    server_url = input_data.get('server_url')
+    project_id = input_data.get('project_id')
+    commit_id = input_data.get('commit_id')
+    sysmod_project_id = input_data.get('sysmod_project_id')
+    
+    if not all([server_url, project_id, commit_id, sysmod_project_id]):
+         raise ValueError("server_url, project_id, commit_id, and sysmod_project_id are required.")
+
+    needs = sysmod_api_helpers.get_sysmod_needs(server_url, project_id, commit_id, sysmod_project_id)
+    
+    return jsonify(needs)
 
 #
 # Get Use Cases
@@ -412,8 +432,8 @@ def api_stakeholders():
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         raise ValueError("Required parameters missing.")
 
-    #if 'STAKEHOLDERS' in SYSMOD_CACHE:
-    #    return jsonify(SYSMOD_CACHE['STAKEHOLDERS'])
+    if 'STAKEHOLDERS' in SYSMOD_CACHE:
+        return jsonify(SYSMOD_CACHE['STAKEHOLDERS'])
 
     stakeholders = sysmod_api_helpers.get_stakeholders(server_url, project_id, commit_id, sysmod_project_id)
     if stakeholders:
@@ -422,8 +442,6 @@ def api_stakeholders():
         return jsonify(stakeholders)
     else:
         return None
-
-# /api/feature endpoints are provided by pleml_api_server.py (pleml_blueprint)
 
 @app.route('/api/quality-checks', methods=['POST'])
 def api_quality_checks():
@@ -511,7 +529,7 @@ def api_sysmod_atlas():
          return jsonify({"error": "Missing parameters"}), 400
 
     print(f"Getting SYSMOD atlas for project {sysmod_project_id}")
-    query_url = mbse4u_sysmlv2.get_commit_url(server_url, project_id, commit_id)
+    mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     atlas = {
         "FEATURE": False,
@@ -522,6 +540,7 @@ def api_sysmod_atlas():
         "SYSTEM": False,
         "USECASES": False,
         "REQUIREMENTS": False,
+        "NEEDS": False,
         "FUNCTIONAL": False,
         "LOGICAL": False,
         "PRODUCT": False
@@ -560,7 +579,7 @@ def api_sysmod_atlas():
         elif loadAll:
             try:
                 # We pass the Enum Value (qualified name) to get_context
-                ctx_data = sysmod_api_helpers.get_context(server_url, project_id, commit_id, sysmod_project_id, kind.value)
+                ctx_data = sysmod_api_helpers.get_full_context(server_url, project_id, commit_id, sysmod_project_id, kind.value)
                 if ctx_data:
                     atlas[atlas_key] = True
                     SYSMOD_CACHE[cache_key] = ctx_data
@@ -569,7 +588,7 @@ def api_sysmod_atlas():
         else:
             # Fallback Light Check (Original Layout)
             def check_specialization(qualified_name):
-                return mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, part_usages, qualified_name)
+                return mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, part_usages, qualified_name)
                 
             if not atlas.get(atlas_key):
                 if check_specialization(kind.value):
@@ -585,12 +604,12 @@ def api_sysmod_atlas():
             SYSMOD_CACHE['STAKEHOLDERS'] = stakeholders
     else:
         # Light Check
-        if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, part_usages, 'projectStakeholders'):
+        if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, part_usages, 'projectStakeholders'):
             atlas["STAKE"] = True
         else:
             for p in part_usages:
-                children = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, p['@id'], 'PartUsage')
-                if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, children, 'projectStakeholders'):
+                children = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, p['@id'], 'PartUsage')
+                if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, children, 'projectStakeholders'):
                     atlas["STAKE"] = True
                     break
 
@@ -604,12 +623,12 @@ def api_sysmod_atlas():
             SYSMOD_CACHE['PROBLEMSTATEMENT'] = ps
     else:
         # Light Check
-        concern_usages = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'ConcernUsage')
-        if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, concern_usages, 'problemStatement'):
+        concern_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'ConcernUsage')
+        if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, concern_usages, 'problemStatement'):
              atlas["PS"] = True
         else:
-             all_req_usages = mbse4u_sysmlv2.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'RequirementUsage')
-             if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, all_req_usages, 'problemStatement'):
+             all_req_usages = mbse4u_sysmlv2_helpers.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'RequirementUsage')
+             if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, all_req_usages, 'problemStatement'):
                  atlas["PS"] = True
 
     # 5. USE CASES
@@ -622,12 +641,12 @@ def api_sysmod_atlas():
             SYSMOD_CACHE['USECASES'] = ucs
     else:
         # Light Check
-        uc_usages = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'UseCaseUsage')
-        if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, uc_usages, 'useCase'):
+        uc_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'UseCaseUsage')
+        if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, uc_usages, 'useCase'):
              atlas["UC"] = True
         else:
-             all_ucs = mbse4u_sysmlv2.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'UseCaseUsage')
-             if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, all_ucs, 'useCase'):
+             all_ucs = mbse4u_sysmlv2_helpers.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'UseCaseUsage')
+             if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, all_ucs, 'useCase'):
                   atlas["UC"] = True
             
     # 6. REQUIREMENTS
@@ -640,13 +659,29 @@ def api_sysmod_atlas():
             SYSMOD_CACHE['REQUIREMENTS'] = reqs
     else:
         # Light Check
-        req_usages_generic = mbse4u_sysmlv2.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'RequirementUsage')
+        req_usages_generic = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'RequirementUsage')
         if req_usages_generic:
              atlas["RE"] = True
         else:
-            all_reqs = mbse4u_sysmlv2.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'RequirementUsage')
-            if mbse4u_sysmlv2.find_elements_specializing(server_url, project_id, commit_id, all_reqs, 'requirement'):
+            all_reqs = mbse4u_sysmlv2_helpers.get_elements_byKind_fromAPI(server_url, project_id, commit_id, 'RequirementUsage')
+            if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, all_reqs, 'requirement'):
                 atlas["RE"] = True
+
+    # 6b. NEEDS
+    if 'NEEDS' in SYSMOD_CACHE:
+        atlas["NEEDS"] = True
+    elif loadAll:
+        needs = sysmod_api_helpers.get_sysmod_needs(server_url, project_id, commit_id, sysmod_project_id)
+        if needs:
+            atlas["NEEDS"] = True
+            SYSMOD_CACHE['NEEDS'] = needs
+    else:
+        # Light Check (Since Needs might just be RequirementUsages, let's keep it simple for now and do a generic check or true if we have req usages)
+        if req_usages_generic:
+             atlas["NEEDS"] = True
+        else:
+            if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, all_reqs, 'needSpecification'):
+                atlas["NEEDS"] = True
             
     return jsonify(atlas)
 

@@ -330,6 +330,12 @@
                             class="w-4 h-4 text-brand-blue rounded border-slate-300 focus:ring-brand-blue">
                         <span class="text-sm font-medium text-slate-700">Requirements</span>
                     </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" onchange="toggleSection('needs_section')"
+                            data-view-id="needs"
+                            class="w-4 h-4 text-brand-blue rounded border-slate-300 focus:ring-brand-blue">
+                        <span class="text-sm font-medium text-slate-700">Needs</span>
+                    </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" onchange="toggleSection('functional_context_section')"
                             data-view-id="functional_context"
@@ -353,7 +359,13 @@
 
             <!-- PLEML Section -->
             <div>
-                <h4 class="text-xs font-bold text-brand-blue uppercase tracking-wider mb-3">2. PLEML</h4>
+                <div class="flex items-center gap-2 mb-3">
+                    <h4 class="text-xs font-bold text-brand-blue uppercase tracking-wider">2. PLEML</h4>
+                    <button onclick="checkPleml()"
+                        class="px-2 py-0.5 text-[10px] font-semibold text-white bg-brand-blue rounded hover:bg-indigo-700 transition-colors"
+                        title="Check if this project contains a PLEML feature model">Check</button>
+                </div>
+                <div id="pleml_check_result" class="hidden mb-2 px-2 py-1 rounded text-xs font-medium"></div>
                 <div class="space-y-2 pl-2">
                     <label class="flex items-center space-x-2 cursor-pointer">
                         <input type="checkbox" onchange="toggleSection('uvl_renderer')" data-view-id="feature_tree_uvl"
@@ -486,6 +498,9 @@
 
                     <!-- Row 3 Left: UC, SC, RE -->
                     <div class="border-r-4 border-black relative p-4">
+                        <div id="grid_NE" data-section="needs_section"
+                            class="draggable-node w-32 h-20 rounded-[50%] bg-gray-200 flex items-center justify-center font-bold border-2 border-black text-xs text-center shadow-lg transition-transform hover:scale-105 cursor-pointer text-slate-700 px-1 z-10 absolute top-6 left-6">
+                            Needs</div>
                         <div id="grid_RE" data-section="requirements_section"
                             class="draggable-node w-32 h-20 rounded-[50%] bg-gray-200 flex items-center justify-center font-bold border-2 border-black text-xs text-center shadow-lg transition-transform hover:scale-105 cursor-pointer text-slate-700 px-1 z-10 absolute bottom-6 left-6">
                             Requirements</div>
@@ -862,6 +877,18 @@
             </div>
         </section>
 
+        <!-- Needs Table -->
+        <section id="needs_section" class="mb-12 animate-fade-in hidden delay-400">
+            <h2 class="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <i data-lucide="target" class="w-6 h-6 text-orange-500"></i>
+                Needs
+            </h2>
+            <!-- Content will be loaded dynamically -->
+            <div class="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                <p class="text-slate-500 italic">Loading Needs...</p>
+            </div>
+        </section>
+
         <!-- UVL Renderer Section -->
         <section id="uvl_renderer" class="mb-12 animate-fade-in hidden">
             <div class="glass gradient-border p-6 shadow-sm">
@@ -986,6 +1013,41 @@
         const commitId = params.get('commit_id');
         const sysmodProjectId = params.get('sysmod_project_id');
 
+        async function checkPleml() {
+            const resultEl = document.getElementById('pleml_check_result');
+            resultEl.className = 'mb-2 px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600';
+            resultEl.textContent = 'Checking...';
+            resultEl.classList.remove('hidden');
+            try {
+                const response = await fetch('/api/check-pleml', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        server_url: serverUrl,
+                        project_id: projectId,
+                        commit_id: commitId
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.has_pleml) {
+                        resultEl.className = 'mb-2 px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700';
+                        resultEl.textContent = '✓ PLEML detected' + (data.feature_tree_count ? ` (${data.feature_tree_count} tree(s))` : '');
+                    } else {
+                        resultEl.className = 'mb-2 px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700';
+                        resultEl.textContent = '✗ No PLEML found' + (data.reason ? `: ${data.reason}` : '');
+                    }
+                } else {
+                    const err = await response.json().catch(() => null);
+                    resultEl.className = 'mb-2 px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700';
+                    resultEl.textContent = 'Error: ' + (err?.error || response.statusText);
+                }
+            } catch (e) {
+                resultEl.className = 'mb-2 px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700';
+                resultEl.textContent = 'Error: ' + e.message;
+            }
+        }
+
         let currentProjectData = null;
         const loadedSections = new Set();
 
@@ -1004,6 +1066,7 @@
             'feature_bindings_section': renderFeatureBindings,
             'usecases_section': renderUseCases,
             'requirements_section': renderRequirements,
+            'needs_section': renderNeeds,
             'stakeholders_section': renderStakeholders,
             'uvl_renderer': loadFeatureTreeData, // Load data when section is toggled or init
             'sysml_renderer': loadSysMLTreeData
@@ -1799,6 +1862,81 @@
             }
         }
 
+        // Render Needs
+        async function renderNeeds(projectData) {
+            console.log("Rendering Needs...");
+            const container = document.getElementById('needs_section');
+
+            try {
+                const response = await fetch('/get_needs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        server_url: serverUrl,
+                        project_id: projectId,
+                        commit_id: commitId,
+                        sysmod_project_id: sysmodProjectId
+                    })
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch needs");
+
+                const needs = await response.json();
+
+                // Build Table
+                let html = `
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="target" class="w-6 h-6 text-slate-700"></i>
+                            Needs
+                        </h2>
+                        <span class="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">${needs.length} Items</span>
+                    </div>
+                    <div class="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Identifier</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Text</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Stakeholders</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                `;
+
+                needs.forEach(req => {
+                    html += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-blue">
+                                ${req.uri ? `<a href="${req.uri}" target="_blank" class="hover:underline">${req.identifier}</a>` : req.identifier}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">${req.name}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600 max-w-md break-words">${req.text}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${req.stakeholders || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    ${req.priority === 'Critical' ? 'bg-red-100 text-red-800' :
+                            req.priority === 'High' ? 'bg-orange-100 text-orange-800' :
+                                'bg-green-100 text-green-800'}">
+                                    ${req.priority}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+                lucide.createIcons();
+
+            } catch (error) {
+                console.error("Error loading needs:", error);
+                container.innerHTML = `<div class="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">Error loading needs: ${error.message}</div>`;
+            }
+        }
+
         // Render Feature Bindings
         async function renderFeatureBindings(projectData) {
             console.log("Rendering Feature Bindings...");
@@ -1948,11 +2086,23 @@
                 `;
 
                 usecases.forEach(uc => {
-                    const actorsHtml = uc.actors.map(actor =>
-                        `<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
-                            <i data-lucide="user" class="w-3 h-3 mr-1"></i> ${actor}
-                         </span>`
-                    ).join('');
+                    const descText = Array.isArray(uc.description) ? uc.description.join(' ') : (uc.description || '');
+                    const actorsStr = uc.actors || '';
+                    const actorsHtml = actorsStr
+                        ? actorsStr.split(',').map(a => a.trim()).filter(a => a).map(actor =>
+                            `<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
+                                <i data-lucide="user" class="w-3 h-3 mr-1"></i> ${actor}
+                             </span>`
+                          ).join('')
+                        : '<span class="text-xs text-slate-400 italic">No actors defined</span>';
+
+                    const stepsStr = uc.steps || '';
+                    const stepsHtml = stepsStr
+                        ? '<ol class="list-decimal list-inside text-sm text-slate-600 space-y-1">' +
+                          stepsStr.split(',').map(s => s.trim()).filter(s => s).map(step =>
+                            `<li>${step}</li>`
+                          ).join('') + '</ol>'
+                        : '<span class="text-xs text-slate-400 italic">No steps defined</span>';
 
                     html += `
                         <div class="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-slate-200 overflow-hidden">
@@ -1964,9 +2114,16 @@
                                     </div>
                                 </div>
                                 <h3 class="text-lg font-bold text-slate-800 mb-2 group-hover:text-brand-blue transition-colors">${uc.name}</h3>
-                                <p class="text-slate-600 text-sm mb-4 line-clamp-3">${uc.description}</p>
+                                <p class="text-slate-600 text-sm mb-4 line-clamp-3">${descText}</p>
+
+                                <div class="mb-4 pt-3 border-t border-slate-100">
+                                    <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                                        <i data-lucide="list-ordered" class="w-3 h-3 inline mr-1"></i> Steps
+                                    </h4>
+                                    ${stepsHtml}
+                                </div>
                                 
-                                <div class="flex flex-wrap gap-2 mt-auto pt-4 border-t border-slate-100">
+                                <div class="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
                                     ${actorsHtml}
                                 </div>
                             </div>
@@ -2048,6 +2205,7 @@
                         'SYSTEM': 'grid_SC',
                         'USECASES': 'grid_UC',
                         'REQUIREMENTS': 'grid_RE',
+                        'NEEDS': 'grid_NE',
                         'FUNCTIONAL': 'grid_FUC',
                         'LOGICAL': 'grid_LAC',
                         'PRODUCT': 'grid_PAC'

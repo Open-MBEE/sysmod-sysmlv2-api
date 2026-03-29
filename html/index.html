@@ -362,24 +362,32 @@ limitations under the License.
     </div>
 
     <div class="container pt-24">
-        <!-- Replaced Title/Logo with Header -->
-        <div class="section">
-            <label for="server_url">SysML v2 Repository Server URL</label>
-            <input type="text" id="server_url" placeholder="Enter server URL (e.g., http://example.com)" />
-            <div class="mt-3 flex items-center gap-3">
-                <button onclick="queryProjects()" class="btn-primary flex-1">Get Projects</button>
-                <button onclick="toggleSettings()" class="btn-secondary shrink-0">⚙️ Params</button>
+        <!-- Top Row: Load vs Create -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Replaced Title/Logo with Header -->
+            <div class="section flex flex-col justify-between" style="margin-bottom: 0;">
+                <div>
+                    <h2>Open Existing Project</h2>
+                    <label for="server_url">SysML v2 Repository Server URL</label>
+                    <input type="text" id="server_url" placeholder="Enter server URL (e.g., http://example.com)" />
+                </div>
+                <div class="mt-3 flex items-center gap-3">
+                    <button onclick="queryProjects()" class="btn-primary flex-1">Get Projects</button>
+                    <button onclick="toggleSettings()" class="btn-secondary shrink-0">⚙️ Params</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Create New Model Section -->
-        <div class="section">
-            <h2>Create New Model</h2>
-            <p>Alternatively, start a new project from scratch with a guided wizard.</p>
-            <button onclick="startWizard()" class="btn-secondary" style="width: 100%; justify-content: center;">
-                <i data-lucide="plus-circle" style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem;"></i>
-                Start Creation Wizard
-            </button>
+            <!-- Create New Model Section -->
+            <div class="section flex flex-col justify-between" style="margin-bottom: 0;">
+                <div>
+                    <h2>Create New Model</h2>
+                    <p>Alternatively, start a new project from scratch with a guided wizard.</p>
+                </div>
+                <button onclick="startWizard()" class="btn-secondary mt-auto" style="width: 100%; justify-content: center;">
+                    <i data-lucide="plus-circle" style="width: 1.25rem; height: 1.25rem; margin-right: 0.5rem;"></i>
+                    Start Creation Wizard
+                </button>
+            </div>
         </div>
 
         <!-- Settings Section -->
@@ -555,6 +563,8 @@ limitations under the License.
 
         function storeManualProjectId() {
             const projectId = document.getElementById('manual_project_id').value;
+            // Clear dropdown selection so the manual ID takes precedence
+            document.getElementById('project_list').value = '';
             const display = document.getElementById('selected_project_display');
             display.textContent = `Selected Project ID: ${projectId}`;
             display.style.display = projectId ? 'block' : 'none';

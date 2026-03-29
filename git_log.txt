@@ -1,0 +1,84 @@
+commit eb932fc4d4c2ec7a5e6da5315bb2d4dcd7ef724b
+Author: Tim Weilkiens <tim.weilkiens@oose.de>
+Date:   Sat Mar 14 14:14:21 2026 +0100
+
+    Revise README title and project description
+    
+    Updated project title and description in README.
+
+M	README.md
+
+commit 1d04844ca9b6dfd5bf46a558ae5b776689b2e381
+Merge: 2e28960 a0b2165
+Author: Tim Weilkiens <tim.weilkiens@oose.de>
+Date:   Sat Mar 14 14:13:32 2026 +0100
+
+    Merge pull request #5 from Open-MBEE/3-implement-mcp-server-for-sysmod
+    
+    feat: Add MCP server to expose SYSMOD Flask API endpoints as AI agent…
+
+commit a0b216588243d9abce9385b599928cc320174dc9
+Author: Weilkiti <tim.weilkiens@oose.de>
+Date:   Sat Mar 14 14:10:20 2026 +0100
+
+    feat: Add MCP server to expose SYSMOD Flask API endpoints as AI agent tools, updating dependencies, environment examples, and documentation.
+
+M	.env.example
+M	README.md
+M	requirements.txt
+A	sysmod_mcp_server.py
+
+commit e511a32220f6dda398dfb21400c0b2956fc3d477
+Author: Weilkiti <tim.weilkiens@oose.de>
+Date:   Mon Mar 2 18:59:36 2026 +0100
+
+    feat: Add Word document template, VBA macro for SYSMOD report generation, and setup guide.
+
+A	word/SETUP_GUIDE.md
+A	word/SYSMOD-Project-Specification-Template.docm
+A	word/SYSMOD_Report.bas
+
+commit 2e28960321be14273d557fb0a55147ba0e91008a
+Author: Weilkiti <tim.weilkiens@oose.de>
+Date:   Sat Feb 21 19:41:29 2026 +0100
+
+    docs: Document new PLEML API files and their dedicated endpoints in the README.
+
+M	README.md
+
+commit 723bff1d18aa740a844087dd6b38858ce84b1aaa
+Author: Weilkiti <tim.weilkiens@oose.de>
+Date:   Sat Feb 21 19:37:07 2026 +0100
+
+    Moved repository from MBSE4U
+
+A	.env.example
+A	.gitignore
+M	README.md
+A	html/index.html
+A	html/mbse4u_logo.png
+A	html/project.html
+A	html/sysmod-wizard.html
+A	pleml_api_helpers.py
+A	pleml_api_server.py
+A	prompts/brownfield-prompt.txt
+A	prompts/problem-statement-prompt.txt
+A	prompts/product-arch-prompt.txt
+A	prompts/stakeholders-prompt.txt
+A	prompts/sysmod-model-template.txt
+A	prompts/system-idea-prompt.txt
+A	prompts/system-requirements-prompt.txt
+A	prompts/use-cases-prompt.txt
+A	requirements.txt
+A	sysmod_api_helpers.py
+A	sysmod_api_server.py
+A	word/SYSMODTemplate.docm
+
+commit de3e3ca357f9a111ecb5fb759a923bdb1478e87c
+Author: wobrschalek <robert.karban.jpl@gmail.com>
+Date:   Sat Feb 21 10:04:10 2026 -0800
+
+    Initial commit
+
+A	LICENSE
+A	README.md
