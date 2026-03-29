@@ -19,8 +19,6 @@ import mbse4u_sysmlv2_helpers
 import sys
 import os
 
-import mbse4u_sysmlv2_helpers
-
 def get_sysmod_projects(server_url, project_id, commit_id):
     """
     Retrieves list of SYSMOD concepts with metadata concept_name and concept_kind 
@@ -45,10 +43,9 @@ def get_sysmod_project(server_url, project_id, commit_id, element_id):
     """
     Retrieves the project documentation element.
     """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     # Get Element
-    element = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, element_id)
+    element = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), element_id)
     if not element:
         raise ValueError(f"Element {element_id} not found.")
 
@@ -95,9 +92,7 @@ def save_problem_statement(server_url, project_id, commit_id, problem_statement_
 def get_system_idea(server_url, project_id, commit_id, element_id):
     """
     Retrieves the system idea documentation.
-    """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
-    
+    """    
     # 1. Find PartUsage specialized from 'systemIdeaContext'
     part_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, element_id, 'PartUsage')
     print(f"Found {len(part_usages)} PartUsages")
@@ -120,7 +115,7 @@ def get_system_idea(server_url, project_id, commit_id, element_id):
                  return {'body': doc_text}
              else:
                 print(f"Try to find Documentation via Definition: {system_of_interest.get('definition')[0]['@id']}")
-                definition = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, system_of_interest.get('definition')[0]['@id'])
+                definition = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), system_of_interest.get('definition')[0]['@id'])
                 if definition:
                     doc_text_def = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, definition['@id'])
                     if doc_text_def:
