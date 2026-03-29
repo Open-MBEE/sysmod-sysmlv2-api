@@ -371,7 +371,6 @@ def get_sysmod_status(server_url, project_id, commit_id, sysmod_project_id):
     Returns a dictionary with status (bool) for each artifact.
     """
     print(f"Checking SYSMOD status for project {sysmod_project_id}")
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     status = {
         "FEATURE": False,
