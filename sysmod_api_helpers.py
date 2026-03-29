@@ -232,7 +232,6 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
     """
     Retrieves container for dependency relationships annotated with @FB.
     """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     # 1. Find ID of MetadataDefinition "featureBindings"
     fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
