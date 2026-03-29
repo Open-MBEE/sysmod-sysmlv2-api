@@ -316,7 +316,6 @@ def create_feature_binding(server_url, project_id, commit_id, client_id, supplie
     Creates a new Dependency from client_id to supplier_id and annotates it with @FB.
     """
     print(f"Creating Feature Binding between {client_id} and {supplier_id}")
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     
     feature_bindings_containers = get_feature_bindings_container(server_url, project_id, commit_id)
     if not feature_bindings_containers:
