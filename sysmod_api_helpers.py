@@ -66,7 +66,6 @@ def get_problem_statement(server_url, project_id, commit_id, element_id):
     """
     Retrieves the problem statement documentation element.
     """
-    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
 
     # 1. Get RequirementUsages
     concern_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, element_id, 'ConcernUsage')
