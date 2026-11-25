@@ -114,6 +114,15 @@ function itemsOf(body) {
   return Array.isArray(body?.elements) ? body.elements : null;
 }
 
+/** The address of the next page, or null: from the Link header, else page[after]=<last id> if the page was full */
+function nextUrl({ link, url, items, fresh, size, first }) {
+  if (!fresh) return null;
+  const next = nextFromLink(link);
+  if (next) return new URL(next, url).href;
+  const last = items.at(-1)?.['@id'];
+  return items.length >= size && last ? first + '&page%5Bafter%5D=' + encodeURIComponent(last) : null;
+}
+
 export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn = globalThis.fetch.bind(globalThis), pageSize = 256 } = {}) {
   // 256 per page: some servers take too long for larger pages (e.g. sysml2.intercax.com)
   const base = normalizeBaseUrl(baseUrl);
@@ -187,31 +196,24 @@ export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn
   async function list(path, { signal, onProgress, size = pageSize } = {}) {
     const sep = path.includes('?') ? '&' : '?';
     const first = base + path + sep + 'page%5Bsize%5D=' + size;
-    const pageAfter = (id) => first + '&page%5Bafter%5D=' + encodeURIComponent(id);
-    let url = first;
-    const out = [], seen = new Set();
-    for (let page = 0; page < 10000 && url; page++) {
-      const { body, link } = await get(url, signal);
-      const items = itemsOf(body);
-      if (!items) throw new ApiError('The server did not answer with a list.', { url, hint: 'Is this the address of a SysML v2 API server?' });
-      const fresh = items.filter((it) => !seen.has(it?.['@id']));
-      for (const it of fresh) {
-        if (it?.['@id']) seen.add(it['@id']);
-      }
-      out.push(...fresh);
-      onProgress?.(out.length);
-      url = nextUrl({ link, url, items, fresh: fresh.length, size, pageAfter });
-    }
-    return out;
+    const paging = { first, size, signal, onProgress, out: [], seen: new Set() };
+    await readPages(first, paging, 0);
+    return paging.out;
   }
 
-  /** The address of the next page, or null: from the Link header, else page[after]=<last id> if the page was full */
-  function nextUrl({ link, url, items, fresh, size, pageAfter }) {
-    if (!fresh) return null;
-    const next = nextFromLink(link);
-    if (next) return new URL(next, url).href;
-    const last = items.at(-1)?.['@id'];
-    return items.length >= size && last ? pageAfter(last) : null;
+  /** Reads the page at url and, one after the other, the pages after it (at most 10000) */
+  async function readPages(url, paging, page) {
+    if (!url || page >= 10000) return;
+    const { body, link } = await get(url, paging.signal);
+    const items = itemsOf(body);
+    if (!items) throw new ApiError('The server did not answer with a list.', { url, hint: 'Is this the address of a SysML v2 API server?' });
+    const fresh = items.filter((it) => !paging.seen.has(it?.['@id']));
+    for (const it of fresh) {
+      if (it?.['@id']) paging.seen.add(it['@id']);
+    }
+    paging.out.push(...fresh);
+    paging.onProgress?.(paging.out.length);
+    await readPages(nextUrl({ link, url, items, fresh: fresh.length, size: paging.size, first: paging.first }), paging, page + 1);
   }
 
   const time = (c) => Date.parse(c.created || c.timestamp || '') || 0;

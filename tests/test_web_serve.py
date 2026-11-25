@@ -33,7 +33,7 @@ class FakeSysml(BaseHTTPRequestHandler):
         if u.path == "/projects":
             return self.send(200, [{"@id": "p-1", "name": "P", "auth": self.headers.get("Authorization", ""), "query": u.query}])
         if u.path == "/projects/p-1/commits/c/elements":
-            return self.send(200, [{"@id": "e-1"}], {"Link": f"<http://{self.headers['Host']}/projects/p-1/commits/c/elements?page%5Bafter%5D=e-1>; rel=\"next\""})
+            return self.send(200, [{"@id": "e-1"}], {"Link": f"<http://127.0.0.1:{self.server.server_address[1]}/projects/p-1/commits/c/elements?page%5Bafter%5D=e-1>; rel=\"next\""})
         if u.path == "/projects/redirect":
             self.send_response(302); self.send_header("Location", "https://example.org/"); self.end_headers(); return
         if u.path == "/projects/html":

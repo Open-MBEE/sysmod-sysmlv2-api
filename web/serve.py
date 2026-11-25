@@ -219,7 +219,7 @@ def fetch(target, auth):
         if 300 <= e.code < 400:
             raise RelayError(502, "the server answered with a redirect, which the relay does not follow") from None
         status, body, rh = e.code, e.read(MAX_BYTES + 1), e.headers
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
+    except OSError as e:   # URLError and TimeoutError are OSErrors
         if "timed out" in str(e).lower():
             raise RelayError(504, "the server did not answer in time") from None
         raise RelayError(502, "the server could not be reached") from None
@@ -243,8 +243,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="default 127.0.0.1: only this computer can use the relay")
     a = ap.parse_args()
     server = ThreadingHTTPServer((a.host, a.port), Handler)
-    page = urllib.parse.urlunsplit(("http", f"localhost:{a.port}", "/", "", ""))   # local only: the server listens on 127.0.0.1
-    print(f"SYSMOD viewer: {page}   (Ctrl+C to stop)")
+    print(f"SYSMOD viewer on port {a.port} of {a.host}: open localhost:{a.port} in the browser   (Ctrl+C to stop)")
     print("Servers it may read (ALLOWED_SYSML_SERVER_ORIGINS): " + ", ".join(allowed_origins()))
     try:
         server.serve_forever()

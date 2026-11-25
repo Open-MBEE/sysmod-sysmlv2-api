@@ -116,14 +116,13 @@ async function elementsFromSources(engine, files, statusEl) {
 
 /** The elements of .json files (arrays of elements, or { elements: [...] }) */
 async function elementsFromJsonFiles(files) {
-  const elements = [];
-  for (const file of files) {
-    const data = JSON.parse(await file.text());
+  const texts = await Promise.all([...files].map((file) => file.text()));
+  return texts.flatMap((text, i) => {
+    const data = JSON.parse(text);
     const list = Array.isArray(data) ? data : data?.elements;
-    if (!Array.isArray(list)) throw withHint(file.name + ' is not a list of elements.', 'Expected: a JSON array of elements as GET …/commits/{commit}/elements returns it.');
-    elements.push(...list);
-  }
-  return elements;
+    if (!Array.isArray(list)) throw withHint(files[i].name + ' is not a list of elements.', 'Expected: a JSON array of elements as GET …/commits/{commit}/elements returns it.');
+    return list;
+  });
 }
 
 // ---------- rendering of a SYSMOD project ----------
@@ -311,7 +310,7 @@ function splitLabel(label) {
   const cuts = [...label.matchAll(/(?<=[a-z0-9])(?=[A-Z])|(?<=[,_ -])/g)].map((m) => m.index).filter((i) => i > 2 && i < label.length - 2);
   if (!cuts.length) return [label];
   const middle = label.length / 2;
-  const cut = cuts.reduce((best, i) => (Math.abs(i - middle) < Math.abs(best - middle) ? i : best));
+  const cut = cuts.reduce((best, i) => (Math.abs(i - middle) < Math.abs(best - middle) ? i : best), cuts[0]);
   return [label.slice(0, cut).trim(), label.slice(cut).trim()];
 }
 
@@ -510,7 +509,7 @@ async function start(root, cfg) {
       showError(f.err, e);
     }
   }
-  f.connect.addEventListener('click', connect);
+  f.connect.addEventListener('click', () => void connect());
   f.url.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') f.connect.click();
   });
@@ -525,9 +524,9 @@ async function start(root, cfg) {
   f.projFilter.addEventListener('input', () => {
     const before = f.proj.value;
     fillProjects();
-    if (f.proj.value !== before) loadCommits();
+    if (f.proj.value !== before) void loadCommits();
   });
-  f.proj.addEventListener('change', () => loadCommits());
+  f.proj.addEventListener('change', () => void loadCommits());
 
   async function defaultHead(pid) {
     try {
@@ -583,7 +582,7 @@ async function start(root, cfg) {
       f.load.disabled = false;
     }
   }
-  f.load.addEventListener('click', loadModel);
+  f.load.addEventListener('click', () => void loadModel());
 
   // ---------- 2. + 3. The example and files ----------
   let manifestPromise = null;
@@ -616,7 +615,7 @@ async function start(root, cfg) {
       ex.btn.disabled = false;
     }
   }
-  ex.btn?.addEventListener('click', openExample);
+  ex.btn?.addEventListener('click', () => void openExample());
 
   /** .sysml files, read together with the SYSMOD library (unless the visitor brings it along) */
   async function elementsFromSysmlFiles(files, statusEl) {
@@ -646,7 +645,7 @@ async function start(root, cfg) {
       showError(fl.err, e);
     }
   }
-  fl.input.addEventListener('change', openFiles);
+  fl.input.addEventListener('change', () => void openFiles());
 
   // ---------- start ----------
   if (params.get('example') === 'drone' && ex.btn && cfg.engine) {
