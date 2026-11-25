@@ -45,9 +45,12 @@ The SYSMOD Viewer as **one web page**: it reads the model with the SysML v2 API 
 
 ```bash
 python web/serve.py          # then open http://localhost:8080/
+
+# other SysML v2 servers: name them, as for the Flask server
+ALLOWED_SYSML_SERVER_ORIGINS=http://localhost:9000,http://sysml2.intercax.com:9000 python web/serve.py
 ```
 
-`serve.py` uses only the Python standard library. It serves the page and **relays** its requests, read-only, to any SysML v2 API server (or only to those in `ALLOWED_SYSML_SERVER_ORIGINS`, if set, as for the Flask server): a page alone can only read servers that allow requests from it (CORS), and a page on https may not call an http server. With the relay every server works, e.g. `http://sysml2.intercax.com:9000` or Open-MBEE Flexo. The relay listens on localhost only, allows only GET of the read endpoints (`/projects`, `…/branches`, `…/commits`, `…/commits/{id}/elements`) with the paging query, follows no redirects and passes the token on without storing it. Any other static web server works too; then only servers that allow CORS can be read.
+`serve.py` uses only the Python standard library. It serves the page and **relays** its requests, read-only, to the SysML v2 API servers in `ALLOWED_SYSML_SERVER_ORIGINS` (as for the Flask server; default `http://localhost:9000`): a page alone can only read servers that allow requests from it (CORS), and a page on https may not call an http server. With the relay every allowed server works, e.g. `http://sysml2.intercax.com:9000` or Open-MBEE Flexo. The relay listens on localhost only, allows only GET of the read endpoints (`/projects`, `…/branches`, `…/commits`, `…/commits/{id}/elements`) with the paging query, follows no redirects and passes the token on without storing it. Any other static web server works too; then only servers that allow CORS can be read.
 
 What it shows: the project cover (purpose, owner, description, the SYSMOD version from `@SYSMOD { version = … }`, the cover view), the SYSMOD Atlas, completeness checks, problem statement, system idea and objectives, stakeholders, needs, system requirements, system use cases and the context diagram of all six contexts, from the brownfield to the product architecture: actors, the system of interest with its white box parts, and the interfaces with the ports they connect. It reads **SYSMOD v5** (the project is an `occurrence def` with `#project`; the roles are found by their direct redefinition of the features of `SYSMOD::Project`). It loads a commit once (paged) and reads it in the browser. Also a `.json` file with the elements of a commit can be opened.
 

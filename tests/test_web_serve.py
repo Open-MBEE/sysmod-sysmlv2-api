@@ -50,7 +50,17 @@ def start(handler):
     return srv
 
 
+ALLOWED = "https://h.org,http://sysml2.intercax.com:9000"
+
+
 class Rules(unittest.TestCase):
+    def setUp(self):
+        import os
+        os.environ["ALLOWED_SYSML_SERVER_ORIGINS"] = ALLOWED
+
+    def tearDown(self):
+        import os
+        os.environ.pop("ALLOWED_SYSML_SERVER_ORIGINS", None)
     def ok(self, url, expected=None):
         target, error = serve.check_url(url)
         self.assertEqual(error, "", url)
@@ -70,18 +80,17 @@ class Rules(unittest.TestCase):
 
     def test_allowed_origins(self):
         import os
-        os.environ["ALLOWED_SYSML_SERVER_ORIGINS"] = "http://localhost:9000, https://h.org/"
-        try:
-            self.ok("http://localhost:9000/projects")
-            self.ok("https://h.org/projects")
-            self.refused("https://other.org/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
-            self.refused("http://localhost:9001/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
-        finally:
-            del os.environ["ALLOWED_SYSML_SERVER_ORIGINS"]
+        self.refused("https://other.org/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
+        self.refused("http://h.org/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
+        self.refused("http://sysml2.intercax.com:9001/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
+        os.environ.pop("ALLOWED_SYSML_SERVER_ORIGINS")
+        self.ok("http://localhost:9000/projects")   # the default, as for the Flask server
+        self.refused("https://h.org/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
 
     def test_refused(self):
         self.refused("", "invalid address")
         self.refused("file:///etc/passwd", "only http and https")
+        self.refused("https://h.org@evil.org/projects", "invalid address")
         self.refused("https://u:p@h.org/projects", "invalid address")
         self.refused("https://h.org/projects#x", "invalid address")
         self.refused("https://h.org/admin", "not a read endpoint of the SysML v2 API")
@@ -97,13 +106,17 @@ class Rules(unittest.TestCase):
 class Relay(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        import os
         cls.up = start(FakeSysml)
+        os.environ["ALLOWED_SYSML_SERVER_ORIGINS"] = f"http://127.0.0.1:{cls.up.server_address[1]}"
         cls.viewer = start(serve.Handler)
         cls.U = f"http://127.0.0.1:{cls.up.server_address[1]}"
         cls.R = f"http://127.0.0.1:{cls.viewer.server_address[1]}"
 
     @classmethod
     def tearDownClass(cls):
+        import os
+        os.environ.pop("ALLOWED_SYSML_SERVER_ORIGINS", None)
         cls.up.shutdown(); cls.viewer.shutdown()
 
     def get(self, path, headers=None):
@@ -122,7 +135,7 @@ class Relay(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'id="sysmod-viewer"', body)
         status, _, body = self.get("/viewer-config.json")
-        self.assertEqual(json.loads(body)["relay"]["servers"], ["*"])
+        self.assertEqual(json.loads(body)["relay"]["servers"], [self.U])
         self.assertEqual(self.get("/serve.py")[0], 404)
 
     def test_relayed_with_token_and_paging(self):
@@ -139,7 +152,8 @@ class Relay(unittest.TestCase):
         self.assertEqual(self.relay(self.U + "/projects/redirect")[0], 502)
         self.assertIn(b"did not answer with JSON", self.relay(self.U + "/projects/html")[2])
         self.assertEqual(self.relay(self.U + "/admin")[0], 400)
-        self.assertEqual(self.relay("http://127.0.0.1:1/projects")[0], 502)
+        self.assertEqual(self.relay("http://127.0.0.1:1/projects")[0], 400)   # not on the list
+        self.assertEqual(self.relay("https://example.org/projects")[0], 400)
         self.assertEqual(self.relay(self.U + "/projects", {"Sec-Fetch-Site": "cross-site"})[0], 403)
         status, headers, _ = self.relay(self.U + "/admin")
         self.assertEqual(headers["X-Relay-Error"], "1")

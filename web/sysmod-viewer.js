@@ -36,7 +36,7 @@ async function start(cfg) {
     return e;
   };
   /** Doc text as paragraphs: blank lines separate paragraphs, single line breaks are the line breaks of the source. */
-  const paras = (text, cls = '') => String(text || '').split(/\n{2,}/).map((p) => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).map((p) => h('p', { class: cls }, p));
+  const paras = (text, cls = '') => String(text || '').split(/\n{2,}/).map((p) => p.split('\n').map((l) => l.trim()).filter(Boolean).join(' ')).filter(Boolean).map((p) => h('p', { class: cls }, p));
   const nf = new Intl.NumberFormat('en');
   const status = (el, text, kind = '') => { el.textContent = text; el.dataset.kind = kind; };
 

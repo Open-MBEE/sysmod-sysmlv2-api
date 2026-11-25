@@ -30,6 +30,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Removes trailing slashes, in linear time (no regular expression anchored at the end). */
+const trimSlashes = (s) => { let e = s.length; while (e > 0 && s[e - 1] === '/') e--; return s.slice(0, e); };
+
 /** Normalizes what a user pastes: no trailing slash, no /projects…, scheme added if missing. */
 export function normalizeBaseUrl(input) {
   let s = String(input || '').trim();
@@ -38,8 +41,10 @@ export function normalizeBaseUrl(input) {
   const u = new URL(s);
   if (!/^https?:$/.test(u.protocol)) throw new ApiError('The address must start with https:// (or http:// for a server on this computer).');
   u.hash = ''; u.search = '';
-  u.pathname = u.pathname.replace(/\/projects(\/.*)?$/, '').replace(/\/+$/, '');
-  return u.href.replace(/\/+$/, '');
+  const i = u.pathname.indexOf('/projects');
+  const p = i >= 0 && (u.pathname.length === i + 9 || u.pathname[i + 9] === '/') ? u.pathname.slice(0, i) : u.pathname;
+  u.pathname = trimSlashes(p);
+  return trimSlashes(u.href);
 }
 
 const isLocal = (u) => ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
@@ -67,7 +72,7 @@ export function nextFromLink(header) {
 export function usesRelay(url, relay) {
   if (!relay?.url || !Array.isArray(relay.servers)) return false;
   if (relay.servers.includes('*')) return true;
-  try { return relay.servers.map((s) => String(s).replace(/\/+$/, '').toLowerCase()).includes(new URL(url).origin.toLowerCase()); } catch { return false; }
+  try { return relay.servers.map((s) => trimSlashes(String(s)).toLowerCase()).includes(new URL(url).origin.toLowerCase()); } catch { return false; }
 }
 
 export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn = globalThis.fetch.bind(globalThis), pageSize = 256 } = {}) {   // 256 per page: some servers take too long for larger pages (e.g. sysml2.intercax.com)

@@ -8,8 +8,10 @@ Serves the single-page SYSMOD viewer (this folder) and relays its requests to Sy
 Only the Python standard library, no packages.
 
 Why a relay: a web page may only read servers that allow requests from it (CORS), and a page may not call
-plain-http servers from https. The relay asks the server on behalf of the page, so every SysML v2 API server works,
-also e.g. http://sysml2.intercax.com:9000 or a server without CORS such as Flexo.
+plain-http servers from https. The relay asks the server on behalf of the page, so every allowed SysML v2 API server
+works, also e.g. http://sysml2.intercax.com:9000 or a server without CORS such as Flexo:
+
+    ALLOWED_SYSML_SERVER_ORIGINS=http://localhost:9000,http://sysml2.intercax.com:9000 python web/serve.py
 
 The relay is narrow:
   - it listens on localhost only (unless --host says otherwise);
@@ -17,8 +19,8 @@ The relay is narrow:
     .../commits/{id}/elements[/{id}], optionally behind a path prefix such as /api/v1) and only the paging query
     page[size], page[after], page[before]; http and https; no redirects followed; JSON only;
   - the token (header X-Relay-Authorization) is passed on as Authorization and never stored or logged.
-  - ALLOWED_SYSML_SERVER_ORIGINS (as for the Flask server, comma-separated origins such as http://localhost:9000):
-    if set, only these servers; if not set, any server (the relay listens on localhost only).
+  - only the servers in ALLOWED_SYSML_SERVER_ORIGINS (comma-separated origins, as for the Flask server; default
+    http://localhost:9000, http://127.0.0.1:9000, http://[::1]:9000);
 The same rules as relay.php of mbse4u.com/tools/sysmod-viewer/, which in addition has an allowlist of servers.
 """
 import argparse
@@ -41,19 +43,22 @@ READ_PATH = re.compile(
     r"^(/[A-Za-z0-9._~-]{1,60}){0,3}?/projects(/" + SEGMENT + r"(/branches(/" + SEGMENT + r")?|/commits(/" + SEGMENT
     + r"(/elements(/" + SEGMENT + r")?)?)?)?)?$"
 )
-CONFIG = {"relay": {"url": "relay", "servers": ["*"], "label": "the local relay (serve.py)"}}
+DEFAULT_ORIGINS = "http://localhost:9000,http://127.0.0.1:9000,http://[::1]:9000"   # as sysmod_api_server.py
 
 
 def allowed_origins():
-    """ALLOWED_SYSML_SERVER_ORIGINS as a set of origins, or None (any server)."""
-    raw = os.environ.get("ALLOWED_SYSML_SERVER_ORIGINS", "").strip()
-    if not raw:
-        return None
-    return {o.strip().rstrip("/").lower() for o in raw.split(",") if o.strip()}
+    """The servers the relay may ask: ALLOWED_SYSML_SERVER_ORIGINS, as for the Flask server."""
+    raw = os.environ.get("ALLOWED_SYSML_SERVER_ORIGINS", DEFAULT_ORIGINS)
+    return [o.strip().rstrip("/").lower() for o in raw.split(",") if o.strip()]
+
+
+def viewer_config():
+    return {"relay": {"url": "relay", "servers": allowed_origins(), "label": "the local relay (serve.py)",
+                      "contact": "the variable ALLOWED_SYSML_SERVER_ORIGINS of serve.py"}}
 
 
 def check_url(url: str):
-    """The address to request, or (None, reason). Same rules as relay.php, without the allowlist."""
+    """The address to request, or (None, reason). Same rules as relay.php of mbse4u.com."""
     if not url or len(url) > 2048 or re.search(r"[\x00-\x20\x7f\\]", url):
         return None, "invalid address"
     p = urllib.parse.urlsplit(url)
@@ -82,11 +87,12 @@ def check_url(url: str):
         seen.add(k)
         query.append(urllib.parse.quote(k, safe="") + "=" + urllib.parse.quote(v, safe=""))
     host = p.hostname.lower()
-    netloc = (f"[{host}]" if ":" in host else host) + (f":{p.port}" if p.port else "")
-    allowed = allowed_origins()
-    if allowed is not None and f"{p.scheme.lower()}://{netloc}" not in allowed:
+    origin = f"{p.scheme.lower()}://" + (f"[{host}]" if ":" in host else host) + (f":{p.port}" if p.port else "")
+    # the server part of the request is taken from the allowlist, never from the address the page sent
+    base = next((allowed for allowed in allowed_origins() if allowed == origin), None)
+    if base is None:
         return None, "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)"
-    return urllib.parse.urlunsplit((p.scheme.lower(), netloc, path, "&".join(query), "")), ""
+    return base + path + ("?" + "&".join(query) if query else ""), ""
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -124,7 +130,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlsplit(self.path).path
         if path == "/viewer-config.json":
-            return self.answer(200, json.dumps(CONFIG).encode())
+            return self.answer(200, json.dumps(viewer_config()).encode())
         if path == "/relay":
             return self.relay()
         if path.endswith(".py"):
@@ -176,6 +182,7 @@ def main():
     a = ap.parse_args()
     server = ThreadingHTTPServer((a.host, a.port), Handler)
     print(f"SYSMOD viewer: http://localhost:{a.port}/   (Ctrl+C to stop)")
+    print("Servers it may read (ALLOWED_SYSML_SERVER_ORIGINS): " + ", ".join(allowed_origins()))
     try:
         server.serve_forever()
     except KeyboardInterrupt:

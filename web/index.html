@@ -85,7 +85,7 @@
     <h2 id="sv-good-to-know">Good to know</h2>
     <ul>
       <li><strong>Run it:</strong> <code>python web/serve.py</code>, then open <code>http://localhost:8080/</code>. The script needs only Python 3, no packages. Browsers do not run the page from a <code>file://</code> address.</li>
-      <li><strong>CORS and http:</strong> a page can only read servers that allow requests from it. <code>serve.py</code> also relays the requests (read-only) to any SysML v2 server, so with it every server works, including plain <code>http://</code> ones.</li>
+      <li><strong>CORS and http:</strong> a page can only read servers that allow requests from it. <code>serve.py</code> also relays the requests (read-only) to the servers in <code>ALLOWED_SYSML_SERVER_ORIGINS</code> (default <code>http://localhost:9000</code>), including plain <code>http://</code> ones and servers without CORS.</li>
       <li><strong>Token:</strong> optional, passed on as header <code>Authorization</code>; it stays in the page and is never stored. The page address records server, project and commit (not the token).</li>
       <li><strong>SYSMOD v5:</strong> the project is an <code>occurrence def</code> with <code>#project</code> or a specialization of <code>SYSMOD::Project</code>; the SYSMOD library must be in the same project.</li>
       <li><strong>Read-only.</strong> Editing, the AI suggestions and the creation wizard are in the Flask server of this repository (<code>sysmod_api_server.py</code>).</li>
@@ -100,7 +100,7 @@
     if (r.ok) {
       const extra = await r.json();
       root.dataset.config = JSON.stringify({ ...JSON.parse(root.dataset.config), ...extra });
-      if (extra.relay) document.querySelector('[data-relay-note]').append(' Running with serve.py: every server is reached through its relay.');
+      if (extra.relay) document.querySelector('[data-relay-note]').append(` Running with serve.py: these servers are reached through its relay: ${extra.relay.servers.join(', ')} (ALLOWED_SYSML_SERVER_ORIGINS).`);
     }
   } catch { /* served without serve.py: no relay */ }
   await import('./sysmod-viewer.js');

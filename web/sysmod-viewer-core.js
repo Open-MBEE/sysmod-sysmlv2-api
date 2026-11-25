@@ -130,7 +130,14 @@ export function definitionsOf(M, el) {
 /** Removes the comment layout that some servers keep in the body (leading asterisks of continued lines). */
 export function cleanDoc(body) {
   if (typeof body !== 'string') return '';
-  return body.replace(/^\s*\/\*+|\*+\/\s*$/g, '').split('\n').map((l) => l.replace(/^\s*\*\s?/, '').trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  // without regular expressions anchored at the end (linear time also for long texts)
+  let t = body.trim();
+  if (t.startsWith('/*')) { let i = 1; while (i < t.length && t[i] === '*') i++; t = t.slice(i); }
+  if (t.endsWith('*/')) { let e = t.length - 1; while (e > 0 && t[e - 1] === '*') e--; t = t.slice(0, e); }
+  const lines = t.split('\n').map((l) => { const s = l.trimStart(); return (s.startsWith('*') ? s.slice(1) : s).trim(); });
+  const out = [];
+  for (const l of lines) if (l || (out.length && out[out.length - 1] !== '')) out.push(l);   // at most one blank line
+  return out.join('\n').trim();
 }
 
 /**
