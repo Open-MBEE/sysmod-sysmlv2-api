@@ -31,127 +31,199 @@ export class ApiError extends Error {
 }
 
 /** Removes trailing slashes, in linear time (no regular expression anchored at the end). */
-const trimSlashes = (s) => { let e = s.length; while (e > 0 && s[e - 1] === '/') e--; return s.slice(0, e); };
+function trimSlashes(s) {
+  let e = s.length;
+  while (e > 0 && s[e - 1] === '/') e--;
+  return s.slice(0, e);
+}
+
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+const isLocal = (u) => LOCAL_HOSTS.includes(u.hostname);
+const hasScheme = (s) => /^[a-z][a-z0-9+.-]*:\/\//i.test(s);
+const startsWithLocalHost = (s) => LOCAL_HOSTS.some((h) => s.toLowerCase().startsWith(h) && [undefined, ':', '/'].includes(s[h.length]));
+
+/** The base path of the API: the path in front of /projects (a pasted address may contain /projects/…). */
+function basePath(pathname) {
+  const i = pathname.indexOf('/projects');
+  const end = i + '/projects'.length;
+  const isSegment = i >= 0 && (pathname.length === end || pathname[end] === '/');
+  return trimSlashes(isSegment ? pathname.slice(0, i) : pathname);
+}
 
 /** Normalizes what a user pastes: no trailing slash, no /projects…, scheme added if missing. */
 export function normalizeBaseUrl(input) {
   let s = String(input || '').trim();
   if (!s) return '';
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = (/^(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(s) ? 'http://' : 'https://') + s;
+  if (!hasScheme(s)) {
+    const scheme = startsWithLocalHost(s) ? 'http://' : 'https://';
+    s = scheme + s;
+  }
   const u = new URL(s);
-  if (!/^https?:$/.test(u.protocol)) throw new ApiError('The address must start with https:// (or http:// for a server on this computer).');
-  u.hash = ''; u.search = '';
-  const i = u.pathname.indexOf('/projects');
-  const p = i >= 0 && (u.pathname.length === i + 9 || u.pathname[i + 9] === '/') ? u.pathname.slice(0, i) : u.pathname;
-  u.pathname = trimSlashes(p);
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new ApiError('The address must start with https:// (or http:// for a server on this computer).');
+  u.hash = '';
+  u.search = '';
+  u.pathname = basePath(u.pathname);
   return trimSlashes(u.href);
 }
 
-const isLocal = (u) => ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+const LOCAL_RELAY = 'Or run the viewer locally with its relay (python web/serve.py of github.com/Open-MBEE/sysmod-sysmlv2-api).';
+const relayOffer = (contact, problem) => (contact ? 'If the server ' + problem + ', it can be added to the relay of this page: write to ' + contact + '.' : LOCAL_RELAY);
 
 /** A reason why the browser will not even send the request (mixed content), or '' */
 export function blockedReason(baseUrl, pageProtocol = globalThis.location?.protocol, contact = '') {
   const u = new URL(baseUrl);
-  if (pageProtocol === 'https:' && u.protocol === 'http:' && !isLocal(u))
-    return 'This page is loaded over HTTPS, so your browser does not allow it to call a server over plain HTTP. Use the https:// address of the server. A server on your own computer (http://localhost) is the exception. '
-      + (contact ? `If the server has no https address, it can be added to the relay of this page: write to ${contact}.` : 'Or run the viewer locally with its relay (python web/serve.py of github.com/Open-MBEE/sysmod-sysmlv2-api).');
-  return '';
+  if (pageProtocol !== 'https:' || u.protocol !== 'http:' || isLocal(u)) return '';
+  return 'This page is loaded over HTTPS, so your browser does not allow it to call a server over plain HTTP. Use the https:// address of the server. '
+    + 'A server on your own computer (http://localhost) is the exception. ' + relayOffer(contact, 'has no https address');
 }
 
-/** The next page from a Link header: <url>; rel="next" */
+/** The next page from a Link header: <url>; rel="next" (parsed without regular expressions) */
 export function nextFromLink(header) {
   if (!header) return null;
   for (const part of header.split(',')) {
-    const m = part.match(/<([^>]+)>\s*;\s*rel="?next"?/i);
-    if (m) return m[1];
+    const open = part.indexOf('<'), close = part.indexOf('>', open + 1);
+    if (open < 0 || close < 0) continue;
+    const params = part.slice(close + 1).split(';').map((x) => x.trim().toLowerCase().replaceAll('"', ''));
+    if (params.includes('rel=next')) return part.slice(open + 1, close).trim();
   }
   return null;
 }
 
-/** Is this address on a server that the relay serves? relay.servers are origins (https://host[:port]). */
+/** Is this address on a server that the relay serves? relay.servers are origins (https://host[:port]), or '*'. */
 export function usesRelay(url, relay) {
   if (!relay?.url || !Array.isArray(relay.servers)) return false;
   if (relay.servers.includes('*')) return true;
-  try { return relay.servers.map((s) => trimSlashes(String(s)).toLowerCase()).includes(new URL(url).origin.toLowerCase()); } catch { return false; }
+  try {
+    const origin = new URL(url).origin.toLowerCase();
+    return relay.servers.some((s) => trimSlashes(String(s)).toLowerCase() === origin);
+  } catch {
+    return false;
+  }
 }
 
-export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn = globalThis.fetch.bind(globalThis), pageSize = 256 } = {}) {   // 256 per page: some servers take too long for larger pages (e.g. sysml2.intercax.com)
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** The header Authorization from what the user enters: "Bearer …", "Basic …" or the bare token */
+function authorization(token) {
+  const t = String(token || '').trim();
+  if (!t) return '';
+  return /^(bearer|basic)\s/i.test(t) ? t : 'Bearer ' + t;
+}
+/** The list of items in an answer: an array, or { elements: [...] } */
+function itemsOf(body) {
+  if (Array.isArray(body)) return body;
+  return Array.isArray(body?.elements) ? body.elements : null;
+}
+
+export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn = globalThis.fetch.bind(globalThis), pageSize = 256 } = {}) {
+  // 256 per page: some servers take too long for larger pages (e.g. sysml2.intercax.com)
   const base = normalizeBaseUrl(baseUrl);
   if (!base) throw new ApiError('Enter the address of a SysML v2 API server.');
-  const t = String(token || '').trim();
-  const auth = t ? (/^(bearer|basic)\s/i.test(t) ? t : `Bearer ${t}`) : '';
+  const auth = authorization(token);
   const viaRelay = usesRelay(base, relay);
   const relayLabel = relay?.label || 'the relay';
   const contact = relay?.contact || '';
 
-  async function get(url, signal) {
-    const relayed = usesRelay(url, relay);
+  /** The request as the browser sends it: to the server, or to the relay with the address as parameter */
+  function request(url, relayed, signal) {
     const headers = { Accept: 'application/json' };
     if (auth) headers[relayed ? 'X-Relay-Authorization' : 'Authorization'] = auth;
-    const target = relayed ? `${relay.url}?url=${encodeURIComponent(url)}` : url;
-    if (!relayed) {
-      const blocked = blockedReason(url, globalThis.location?.protocol, contact);
-      if (blocked) throw new ApiError('The browser blocks this address.', { url, hint: blocked });
-    }
-    let r;
-    try {
-      r = await fetchFn(target, { headers, signal, credentials: 'omit', mode: 'cors' });
-    } catch (e) {
-      if (e?.name === 'AbortError') throw e;
-      throw new ApiError(relayed ? `${relayLabel[0].toUpperCase()}${relayLabel.slice(1)} could not be reached.` : 'The server could not be reached.', {
-        url,
-        hint: relayed ? 'Check your connection and try again.'
-          : 'Most likely the server does not allow requests from this page (CORS); otherwise the address is wrong or the server is down. '
-          + 'The developer console of your browser (F12) shows the exact reason. '
-          + (auth ? 'With a token the server must also allow the header Authorization in its CORS settings. ' : '')
-          + (contact ? `If the server cannot allow it, it can be added to the relay of this page: write to ${contact}.` : 'Or run the viewer locally with its relay (python web/serve.py of github.com/Open-MBEE/sysmod-sysmlv2-api).'),
-      });
-    }
+    const target = relayed ? relay.url + '?url=' + encodeURIComponent(url) : url;
+    return fetchFn(target, { headers, signal, credentials: 'omit', mode: 'cors' });
+  }
+
+  function unreachable(url, relayed) {
+    if (relayed) return new ApiError(capitalize(relayLabel) + ' could not be reached.', { url, hint: 'Check your connection and try again.' });
+    const tokenHint = auth ? 'With a token the server must also allow the header Authorization in its CORS settings. ' : '';
+    return new ApiError('The server could not be reached.', {
+      url,
+      hint: 'Most likely the server does not allow requests from this page (CORS); otherwise the address is wrong or the server is down. '
+        + 'The developer console of your browser (F12) shows the exact reason. ' + tokenHint + relayOffer(contact, 'cannot allow it'),
+    });
+  }
+
+  /** An error for an answer that is not OK, or null */
+  async function answerError(r, url, relayed) {
     if (relayed && r.headers.get('X-Relay-Error')) {
       let msg = '';
       try { msg = (await r.json()).error || ''; } catch { /* not JSON */ }
-      throw new ApiError(`${relayLabel[0].toUpperCase()}${relayLabel.slice(1)}: ${msg || `HTTP ${r.status}`}.`, { status: r.status, url });
+      return new ApiError(capitalize(relayLabel) + ': ' + (msg || 'HTTP ' + r.status) + '.', { status: r.status, url });
     }
-    if (r.status === 401 || r.status === 403) throw new ApiError(`The server refused access (HTTP ${r.status}).`, { status: r.status, url, hint: auth ? 'Check the token.' : 'The server needs a token: enter it under "Token".' });
-    if (r.status === 404) throw new ApiError('Not found (HTTP 404).', { status: 404, url, hint: 'Is this the base address of the API? It is the address in front of /projects.' });
-    if (!r.ok) throw new ApiError(`The server answered with HTTP ${r.status}.`, { status: r.status, url });
-    let body;
-    try { body = await r.json(); } catch {
-      throw new ApiError(relayed ? 'The relay did not answer with JSON.' : 'The server did not answer with JSON.', { url, hint: relayed ? `Is ${relayLabel} running? (It is a server-side script; a static development server does not run it.)` : 'Is this the address of a SysML v2 API server?' });
+    if (r.status === 401 || r.status === 403) {
+      const hint = auth ? 'Check the token.' : 'The server needs a token: enter it under "Token".';
+      return new ApiError('The server refused access (HTTP ' + r.status + ').', { status: r.status, url, hint });
     }
+    if (r.status === 404) return new ApiError('Not found (HTTP 404).', { status: 404, url, hint: 'Is this the base address of the API? It is the address in front of /projects.' });
+    if (!r.ok) return new ApiError('The server answered with HTTP ' + r.status + '.', { status: r.status, url });
+    return null;
+  }
+
+  async function readJson(r, url, relayed) {
+    try {
+      return await r.json();
+    } catch {
+      if (relayed) throw new ApiError('The relay did not answer with JSON.', { url, hint: 'Is ' + relayLabel + ' running? (It is a server-side script; a static development server does not run it.)' });
+      throw new ApiError('The server did not answer with JSON.', { url, hint: 'Is this the address of a SysML v2 API server?' });
+    }
+  }
+
+  async function get(url, signal) {
+    const relayed = usesRelay(url, relay);
+    const blocked = relayed ? '' : blockedReason(url, globalThis.location?.protocol, contact);
+    if (blocked) throw new ApiError('The browser blocks this address.', { url, hint: blocked });
+    let r;
+    try {
+      r = await request(url, relayed, signal);
+    } catch (e) {
+      if (e?.name === 'AbortError') throw e;
+      throw unreachable(url, relayed);
+    }
+    const error = await answerError(r, url, relayed);
+    if (error) throw error;
+    const body = await readJson(r, url, relayed);
     return { body, link: r.headers.get('Link') || r.headers.get('link') };
   }
 
   /** All pages of a list resource. Follows the Link header; without it (not exposed by CORS) page[after]=<last id>. */
   async function list(path, { signal, onProgress, size = pageSize } = {}) {
     const sep = path.includes('?') ? '&' : '?';
-    let url = `${base}${path}${sep}page%5Bsize%5D=${size}`;
+    const first = base + path + sep + 'page%5Bsize%5D=' + size;
+    const pageAfter = (id) => first + '&page%5Bafter%5D=' + encodeURIComponent(id);
+    let url = first;
     const out = [], seen = new Set();
-    for (let page = 0; page < 10000; page++) {
+    for (let page = 0; page < 10000 && url; page++) {
       const { body, link } = await get(url, signal);
-      const items = Array.isArray(body) ? body : Array.isArray(body?.elements) ? body.elements : null;
+      const items = itemsOf(body);
       if (!items) throw new ApiError('The server did not answer with a list.', { url, hint: 'Is this the address of a SysML v2 API server?' });
-      let fresh = 0;
-      for (const it of items) { const id = it?.['@id']; if (id && seen.has(id)) continue; if (id) seen.add(id); out.push(it); fresh++; }
+      const fresh = items.filter((it) => !seen.has(it?.['@id']));
+      for (const it of fresh) {
+        if (it?.['@id']) seen.add(it['@id']);
+      }
+      out.push(...fresh);
       onProgress?.(out.length);
-      const next = nextFromLink(link);
-      if (next) { url = new URL(next, url).href; if (!fresh) break; continue; }
-      // no Link header: if the page was full there may be more, ask for the page after the last element
-      if (items.length < size || !fresh || !items.at(-1)?.['@id']) break;
-      url = `${base}${path}${sep}page%5Bsize%5D=${size}&page%5Bafter%5D=${encodeURIComponent(items.at(-1)['@id'])}`;
+      url = nextUrl({ link, url, items, fresh: fresh.length, size, pageAfter });
     }
     return out;
   }
 
+  /** The address of the next page, or null: from the Link header, else page[after]=<last id> if the page was full */
+  function nextUrl({ link, url, items, fresh, size, pageAfter }) {
+    if (!fresh) return null;
+    const next = nextFromLink(link);
+    if (next) return new URL(next, url).href;
+    const last = items.at(-1)?.['@id'];
+    return items.length >= size && last ? pageAfter(last) : null;
+  }
+
   const time = (c) => Date.parse(c.created || c.timestamp || '') || 0;
+  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
 
   return {
     base,
     viaRelay,
-    projects: async (opts) => (await list('/projects', opts)).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
-    project: async (id, opts) => (await get(`${base}/projects/${encodeURIComponent(id)}`, opts?.signal)).body,
-    branches: (id, opts) => list(`/projects/${encodeURIComponent(id)}/branches`, opts),
-    commits: async (id, opts) => (await list(`/projects/${encodeURIComponent(id)}/commits`, opts)).sort((a, b) => time(b) - time(a)),
-    elements: (id, commit, opts) => list(`/projects/${encodeURIComponent(id)}/commits/${encodeURIComponent(commit)}/elements`, opts),
+    projects: async (opts) => (await list('/projects', opts)).toSorted(byName),
+    project: async (id, opts) => (await get(base + '/projects/' + encodeURIComponent(id), opts?.signal)).body,
+    branches: (id, opts) => list('/projects/' + encodeURIComponent(id) + '/branches', opts),
+    commits: async (id, opts) => (await list('/projects/' + encodeURIComponent(id) + '/commits', opts)).toSorted((a, b) => time(b) - time(a)),
+    elements: (id, commit, opts) => list('/projects/' + encodeURIComponent(id) + '/commits/' + encodeURIComponent(commit) + '/elements', opts),
   };
 }

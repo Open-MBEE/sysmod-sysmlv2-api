@@ -38,11 +38,31 @@ HERE = Path(__file__).resolve().parent
 TIMEOUT = 60
 MAX_BYTES = 64 * 1024 * 1024
 QUERY_KEYS = ("page[size]", "page[after]", "page[before]")
-SEGMENT = r"[A-Za-z0-9._~%-]{1,200}"
-READ_PATH = re.compile(
-    r"^(/[A-Za-z0-9._~-]{1,60}){0,3}?/projects(/" + SEGMENT + r"(/branches(/" + SEGMENT + r")?|/commits(/" + SEGMENT
-    + r"(/elements(/" + SEGMENT + r")?)?)?)?)?$"
-)
+SEGMENT_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~%-")
+PREFIX_CHARS = SEGMENT_CHARS - {"%"}
+# what may follow /projects: {id}, {id}/branches[/{id}], {id}/commits[/{id}[/elements[/{id}]]]
+READ_ENDPOINTS = {(), ("*",), ("*", "branches"), ("*", "branches", "*"), ("*", "commits"), ("*", "commits", "*"),
+                  ("*", "commits", "*", "elements"), ("*", "commits", "*", "elements", "*")}
+
+
+def _is_segment(seg: str, chars=SEGMENT_CHARS, longest=200) -> bool:
+    return 0 < len(seg) <= longest and set(seg) <= chars
+
+
+def _is_read_path(path: str) -> bool:
+    """/projects…: a read endpoint of the SysML v2 API, optionally behind up to three prefix segments (e.g. /api/v1)."""
+    segments = path.split("/")[1:] if path.startswith("/") else []
+    if "projects" not in segments:
+        return False
+    i = segments.index("projects")
+    if i > 3 or not all(_is_segment(x, PREFIX_CHARS, 60) for x in segments[:i]):
+        return False
+    rest = segments[i + 1:]
+    shape = tuple("*" if k % 2 == 0 else x for k, x in enumerate(rest))
+    ids_ok = all(_is_segment(x) for x in rest[0::2])
+    return shape in READ_ENDPOINTS and ids_ok
+
+
 DEFAULT_ORIGINS = "http://localhost:9000,http://127.0.0.1:9000,http://[::1]:9000"   # as sysmod_api_server.py
 
 
@@ -57,42 +77,64 @@ def viewer_config():
                       "contact": "the variable ALLOWED_SYSML_SERVER_ORIGINS of serve.py"}}
 
 
+def _check_form(p):
+    """The parts of the address: scheme, host, no user info or fragment. '' if fine, else the reason."""
+    if p.scheme.lower() not in ("http", "https") or not p.hostname:
+        return "only http and https"
+    if p.username or p.password or p.fragment:
+        return "invalid address"
+    return ""
+
+
+def _check_path(path: str):
+    """A read endpoint of the SysML v2 API, without traversal. '' if fine, else the reason."""
+    if "//" in path:
+        return "invalid path"
+    for segment in path.split("/"):
+        d = urllib.parse.unquote(segment)
+        if d in (".", "..") or any(c in d for c in "/\\\0"):
+            return "invalid path"
+    if not _is_read_path(path):
+        return "not a read endpoint of the SysML v2 API"
+    return ""
+
+
+def _paging_query(query: str):
+    """The paging parameters, each once, re-encoded; None if anything else is in the query."""
+    pairs = {}
+    for pair in filter(None, (query or "").split("&")):
+        k, _, v = pair.partition("=")
+        k, v = urllib.parse.unquote(k), urllib.parse.unquote(v)
+        valid = k in QUERY_KEYS and k not in pairs and len(v) <= 200 and not re.search(r"[\x00-\x1f\x7f]", v)
+        if not valid or (k == "page[size]" and not re.fullmatch(r"\d{1,5}", v)):
+            return None
+        pairs[k] = v
+    return "&".join(urllib.parse.quote(k, safe="") + "=" + urllib.parse.quote(v, safe="") for k, v in pairs.items())
+
+
+def _allowed_base(p):
+    """The entry of ALLOWED_SYSML_SERVER_ORIGINS for the server of the address, or None."""
+    host = p.hostname.lower()
+    origin = f"{p.scheme.lower()}://" + (f"[{host}]" if ":" in host else host) + (f":{p.port}" if p.port else "")
+    return next((allowed for allowed in allowed_origins() if allowed == origin), None)
+
+
 def check_url(url: str):
     """The address to request, or (None, reason). Same rules as relay.php of mbse4u.com."""
     if not url or len(url) > 2048 or re.search(r"[\x00-\x20\x7f\\]", url):
         return None, "invalid address"
     p = urllib.parse.urlsplit(url)
-    if p.scheme.lower() not in ("http", "https") or not p.hostname:
-        return None, "only http and https"
-    if p.username or p.password or p.fragment:
-        return None, "invalid address"
-    path = p.path or ""
-    if "//" in path:
-        return None, "invalid path"
-    for segment in path.split("/"):
-        d = urllib.parse.unquote(segment)
-        if d in (".", "..") or any(c in d for c in "/\\\0"):
-            return None, "invalid path"
-    if not READ_PATH.match(path):
-        return None, "not a read endpoint of the SysML v2 API"
-    query = []
-    seen = set()
-    for pair in filter(None, (p.query or "").split("&")):
-        k, _, v = pair.partition("=")
-        k, v = urllib.parse.unquote(k), urllib.parse.unquote(v)
-        if k not in QUERY_KEYS or k in seen or len(v) > 200 or re.search(r"[\x00-\x1f\x7f]", v):
-            return None, "query not allowed"
-        if k == "page[size]" and not re.fullmatch(r"\d{1,5}", v):
-            return None, "query not allowed"
-        seen.add(k)
-        query.append(urllib.parse.quote(k, safe="") + "=" + urllib.parse.quote(v, safe=""))
-    host = p.hostname.lower()
-    origin = f"{p.scheme.lower()}://" + (f"[{host}]" if ":" in host else host) + (f":{p.port}" if p.port else "")
+    reason = _check_form(p) or _check_path(p.path or "")
+    if reason:
+        return None, reason
+    query = _paging_query(p.query)
+    if query is None:
+        return None, "query not allowed"
     # the server part of the request is taken from the allowlist, never from the address the page sent
-    base = next((allowed for allowed in allowed_origins() if allowed == origin), None)
+    base = _allowed_base(p)
     if base is None:
         return None, "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)"
-    return base + path + ("?" + "&".join(query) if query else ""), ""
+    return base + (p.path or "") + ("?" + query if query else ""), ""
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -148,31 +190,51 @@ class Handler(SimpleHTTPRequestHandler):
         target, error = check_url((params.get("url") or [""])[0])
         if not target:
             return self.fail(400, error)
-        headers = {"Accept": "application/json", "User-Agent": "SYSMOD-viewer-relay/1"}
-        auth = self.headers.get("X-Relay-Authorization") or self.headers.get("Authorization")
-        if auth and len(auth) < 8192 and "\r" not in auth and "\n" not in auth:
-            headers["Authorization"] = auth
         try:
-            with OPENER.open(urllib.request.Request(target, headers=headers), timeout=TIMEOUT) as r:
-                status, body, rh = r.status, r.read(MAX_BYTES + 1), r.headers
-        except urllib.error.HTTPError as e:
-            if 300 <= e.code < 400:
-                return self.fail(502, "the server answered with a redirect, which the relay does not follow")
-            status, body, rh = e.code, e.read(MAX_BYTES + 1), e.headers
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            timeout = "timed out" in str(e).lower()
-            return self.fail(504 if timeout else 502, "the server did not answer in time" if timeout else "the server could not be reached")
-        if len(body) > MAX_BYTES:
-            return self.fail(502, "the answer of the server is too large for the relay")
-        try:
-            json.loads(body or b"null")
-        except ValueError:
-            body = json.dumps({"error": "the server did not answer with JSON", "status": status}).encode()
+            status, body, headers = fetch(target, self.headers.get("X-Relay-Authorization") or self.headers.get("Authorization"))
+        except RelayError as e:
+            return self.fail(e.status, str(e))
         extra = {}
-        link = rh.get("Link")
+        link = headers.get("Link")
         if link and "\r" not in link and "\n" not in link:
             extra["Link"] = link   # unchanged: the viewer resolves the next page against the server's address
-        self.answer(status, body, extra)
+        self.answer(status, json_or_error(body, status), extra)
+
+
+class RelayError(Exception):
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+
+
+def fetch(target, auth):
+    """GET of the target, without following redirects. (status, body, headers); RelayError if the relay cannot answer."""
+    headers = {"Accept": "application/json", "User-Agent": "SYSMOD-viewer-relay/1"}
+    if auth and len(auth) < 8192 and "\r" not in auth and "\n" not in auth:
+        headers["Authorization"] = auth
+    try:
+        with OPENER.open(urllib.request.Request(target, headers=headers), timeout=TIMEOUT) as r:
+            status, body, rh = r.status, r.read(MAX_BYTES + 1), r.headers
+    except urllib.error.HTTPError as e:
+        if 300 <= e.code < 400:
+            raise RelayError(502, "the server answered with a redirect, which the relay does not follow") from None
+        status, body, rh = e.code, e.read(MAX_BYTES + 1), e.headers
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        if "timed out" in str(e).lower():
+            raise RelayError(504, "the server did not answer in time") from None
+        raise RelayError(502, "the server could not be reached") from None
+    if len(body) > MAX_BYTES:
+        raise RelayError(502, "the answer of the server is too large for the relay")
+    return status, body, rh
+
+
+def json_or_error(body: bytes, status: int) -> bytes:
+    """The body if it is JSON, else a JSON error (an HTML error page of the server is not passed on)."""
+    try:
+        json.loads(body or b"null")
+        return body
+    except ValueError:
+        return json.dumps({"error": "the server did not answer with JSON", "status": status}).encode()
 
 
 def main():
@@ -181,7 +243,8 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="default 127.0.0.1: only this computer can use the relay")
     a = ap.parse_args()
     server = ThreadingHTTPServer((a.host, a.port), Handler)
-    print(f"SYSMOD viewer: http://localhost:{a.port}/   (Ctrl+C to stop)")
+    page = urllib.parse.urlunsplit(("http", f"localhost:{a.port}", "/", "", ""))   # local only: the server listens on 127.0.0.1
+    print(f"SYSMOD viewer: {page}   (Ctrl+C to stop)")
     print("Servers it may read (ALLOWED_SYSML_SERVER_ORIGINS): " + ", ".join(allowed_origins()))
     try:
         server.serve_forever()

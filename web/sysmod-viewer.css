@@ -27,7 +27,6 @@ code { font-family: var(--font-notation); font-size: 0.9em; }
 
 .display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
 .display-md { font-size: clamp(1.625rem, 2.6vw, 2.125rem); }
-.ui { font-family: var(--font-ui); }
 .notation { font-family: var(--font-notation); font-size: 0.8125rem; line-height: 1.7; }
 .stereo { font-family: var(--font-ui); font-size: 0.8125rem; font-weight: 500; color: var(--sec, var(--muted)); line-height: 1.3; }
 .stereo::before { content: "«" / ""; }
@@ -48,12 +47,11 @@ code { font-family: var(--font-notation); font-size: 0.9em; }
 .mc-verdict { margin: 0 0 0.35rem; font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; }
 .mc-ok .mc-verdict { color: var(--c-methods); } .mc-bad .mc-verdict { color: var(--c-books); } .mc-meh .mc-verdict { color: var(--c-info); }
 .mc-facts { margin: 0.25rem 0; font-family: var(--font-ui); font-size: 0.9375rem; color: var(--muted); }
-.mc-src { margin: 0.5rem 0 0; padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; font-size: 0.8125rem; background: var(--surface); }
+.mc-src { margin: 0.5rem 0 0; padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; font-size: 0.8125rem; background: var(--surface); max-width: 100%; }
 .mc-files { border-collapse: collapse; font-family: var(--font-ui); font-size: 0.9375rem; min-width: 34rem; }
 .mc-files th, .mc-files td { text-align: left; padding: 0.4rem 1rem 0.4rem 0; border-bottom: 1px solid var(--line); }
 .mc-files .num { text-align: right; font-variant-numeric: tabular-nums; }
 .mc-result, .mc-diag-body { overflow-wrap: anywhere; }
-.mc-src { max-width: 100%; }
 
 /* SYSMOD viewer (/tools/sysmod-viewer/, script public/tools/sysmod-viewer/sysmod-viewer.js) */
 .sv-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; border-bottom: 1.5px solid var(--line); margin-bottom: 1.25rem; }
