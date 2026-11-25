@@ -17,6 +17,7 @@ __pycache__/
 dist/
 build/
 eggs/
+node_modules/
 .eggs/
 *.whl
 *.pyo
@@ -73,3 +74,5 @@ logs/
 # ==================================
 *.tar.gz
 *.zip
+mbse4u_sysmlv2_helpers.py
+mbse4u_sysmlv2_auth.py

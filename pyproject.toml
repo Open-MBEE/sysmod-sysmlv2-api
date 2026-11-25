@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sysmod-sysmlv2-api"
+version = "0.1.0"
+description = "Flask API, web UI, and MCP server for SYSMOD SysML v2 models"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=2.3.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "anytree>=2.8.0",
+    "werkzeug>=2.3.0",
+    "mbse4u-sysmlv2-helpers>=0.1.5",
+    "mcp[cli]>=1.0.0",
+]
+
+[project.optional-dependencies]
+ai = ["openai>=1.0.0"]
+documents = ["pypdf>=3.0.0", "python-docx>=0.8.11"]
+dev = ["pytest>=8.0,<9"]
+
+[tool.setuptools]
+py-modules = [
+    "pleml_api_helpers",
+    "pleml_api_server",
+    "sysmod_api_helpers",
+    "sysmod_api_server",
+    "sysmod_mcp_server",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

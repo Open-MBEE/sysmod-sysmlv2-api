@@ -20,7 +20,7 @@
     <!-- Mermaid.js -->
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { fontFamily: 'Inter' } });
+        mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: 'base', themeVariables: { fontFamily: 'Inter' } });
         window.mermaid = mermaid;
     </script>
 
@@ -59,6 +59,57 @@
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: white;
+        }
+
+        .project-markdown h1 {
+            margin-bottom: 1rem;
+            color: #0f172a;
+            font-size: 2.25rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
+        .project-markdown h2 {
+            margin: 1.75rem 0 0.5rem;
+            color: #1e293b;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .project-markdown p {
+            margin: 0.5rem 0;
+            color: #475569;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .project-markdown ul,
+        .project-markdown ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+            color: #475569;
+            list-style-position: outside;
+        }
+
+        .project-markdown ul {
+            list-style-type: disc;
+        }
+
+        .project-markdown ol {
+            list-style-type: decimal;
+        }
+
+        .project-markdown strong {
+            color: #1e293b;
+            font-weight: 600;
+        }
+
+        .project-markdown code {
+            border-radius: 0.25rem;
+            background: #f1f5f9;
+            padding: 0.125rem 0.25rem;
+            font-family: ui-monospace, monospace;
+            font-size: 0.9em;
         }
 
         /* Gradient Border */
@@ -427,22 +478,11 @@
 
         <!-- Header Section -->
         <header class="mb-12 animate-fade-in">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div class="flex-1">
-                    <h1 id="project_name" class="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">Loading
-                        Project...</h1>
-                    <!-- Project Documentation Field -->
-                    <div class="mt-4">
-                        <label for="project_description" class="block text-sm font-medium text-slate-500 mb-1">Project
-                            Documentation</label>
-                        <textarea id="project_description" readonly
-                            class="w-full h-32 p-3 text-slate-600 border border-slate-200 rounded-lg bg-slate-50 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue resize-none shadow-sm transition-all"
-                            placeholder="Fetching details from SysML v2 Repository..."></textarea>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                </div>
+            <div id="project_cover_canvas"
+                class="project-markdown min-h-64 rounded-2xl border border-slate-200 bg-white p-8 shadow-soft">
+                <p class="text-slate-500 italic">Loading project cover...</p>
             </div>
+            <div id="project_cover_view_status" class="mt-2 text-xs text-slate-400 text-right"></div>
         </header>
 
         <!-- SYSMOD Grid Section -->
@@ -1223,14 +1263,14 @@
             }
 
             try {
-                outputDiv.innerHTML = `<div class="mermaid" style="height: 100%; width: 100%;">${graphCode}</div>`;
+                outputDiv.innerHTML = `<div class="mermaid" style="height: 100%; width: 100%;">${escapeHtml(graphCode)}</div>`;
                 outputDiv.removeAttribute('data-processed');
 
                 if (window.mermaid) {
                     await window.mermaid.run({ nodes: [outputDiv.querySelector('.mermaid')] });
                 }
             } catch (e) {
-                outputDiv.innerHTML = `<p class="text-red-500">Error rendering: ${e.message}</p>`;
+                outputDiv.innerHTML = `<p class="text-red-500">Error rendering: ${escapeHtml(e.message)}</p>`;
             }
         }
 
@@ -1242,7 +1282,7 @@
         if (serverUrl && projectId && commitId && sysmodProjectId) {
             fetchProjectData();
         } else {
-            document.getElementById('project_name').textContent = "Missing Parameters";
+            showProjectCanvas("Missing URL parameters. Please verify the URL contains server_url, project_id, commit_id, and sysmod_project_id.", true);
         }
 
         // Initialize SortableJS
@@ -1256,6 +1296,81 @@
                     console.log('Section moved:', evt.item.id);
                 }
             });
+        }
+
+        function renderProjectMarkdown(markdown) {
+            const lines = String(markdown ?? '').replace(/\r/g, '').split('\n');
+            const html = [];
+            let paragraph = [];
+            let codeLines = [];
+            let inCodeBlock = false;
+            let listType = null;
+
+            const inline = text => escapeHtml(text)
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            const flushParagraph = () => {
+                if (paragraph.length) {
+                    html.push(`<p>${inline(paragraph.join('\n'))}</p>`);
+                    paragraph = [];
+                }
+            };
+            const closeList = () => {
+                if (listType) {
+                    html.push(`</${listType}>`);
+                    listType = null;
+                }
+            };
+
+            for (const line of lines) {
+                if (/^\s*```/.test(line)) {
+                    flushParagraph();
+                    closeList();
+                    if (inCodeBlock) {
+                        html.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+                        codeLines = [];
+                    }
+                    inCodeBlock = !inCodeBlock;
+                    continue;
+                }
+                if (inCodeBlock) {
+                    codeLines.push(line);
+                    continue;
+                }
+                const heading = line.match(/^(#{1,6})\s+(.+)$/);
+                if (heading) {
+                    flushParagraph();
+                    closeList();
+                    const level = heading[1].length;
+                    html.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+                } else if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) {
+                    flushParagraph();
+                    const type = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
+                    if (listType !== type) {
+                        closeList();
+                        html.push(`<${type}>`);
+                        listType = type;
+                    }
+                    html.push(`<li>${inline(line.replace(/^\s*(?:[-*+]|\d+\.)\s+/, ''))}</li>`);
+                } else if (!line.trim()) {
+                    flushParagraph();
+                    closeList();
+                } else {
+                    closeList();
+                    paragraph.push(line);
+                }
+            }
+
+            if (inCodeBlock) html.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+            flushParagraph();
+            closeList();
+            return html.join('');
+        }
+
+        function showProjectCanvas(message, isError = false) {
+            const canvas = document.getElementById('project_cover_canvas');
+            canvas.innerHTML = `<p class="${isError ? 'text-red-600' : 'text-slate-500 italic'}">${escapeHtml(message)}</p>`;
         }
 
         async function fetchProjectData() {
@@ -1282,13 +1397,14 @@
 
                     // Update Header
                     const name = currentProjectData.name || currentProjectData['@id'] || "Untitled Project";
-                    document.getElementById('project_name').textContent = name;
                     document.title = `${name} - Dashboard`;
-                    let description = "No description available.";
-                    if (currentProjectData.documentation) {
-                        description = currentProjectData.documentation || "";
-                    }
-                    document.getElementById('project_description').value = description;
+                    document.getElementById('project_cover_canvas').innerHTML = renderProjectMarkdown(
+                        currentProjectData.markdown || `# ${name}\n\nProject cover content is unavailable.`
+                    );
+                    const coverView = currentProjectData.cover_view;
+                    document.getElementById('project_cover_view_status').textContent = coverView
+                        ? `View: ${coverView.name}`
+                        : 'Project cover view not found; displaying available project information.';
 
                     console.log("Project Data Loaded:", currentProjectData);
 
@@ -1298,13 +1414,11 @@
                 } else {
                     const error = await response.json().catch(() => ({}));
                     console.error("Failed to fetch project data", error);
-                    document.getElementById('project_name').textContent = "Error Loading Project";
-                    document.getElementById('project_description').value = error.error || "Server returned an error.";
+                    showProjectCanvas(error.error || "Server returned an error.", true);
                 }
             } catch (error) {
                 console.error("Error:", error);
-                document.getElementById('project_name').textContent = "Connection Error";
-                document.getElementById('project_description').value = error.message || "Please check if the server is running.";
+                showProjectCanvas(error.message || "Please check if the server is running.", true);
             }
         }
 
@@ -1475,72 +1589,113 @@
                     const data = await response.json();
 
                     if (data && data.context) {
-                        let systemName = defaultTitle;
-                        if (data.system && data.system.name) systemName = data.system.name;
+                        const system = data.system || {};
+                        const parts = system.parts || [];
+                        const actors = data.actors || [];
+                        const systemPorts = system.ports || [];
+                        const ownerBoxWidth = 230;
+                        const systemX = 510;
+                        const systemY = 40;
+                        const partRowHeight = 112;
+                        const partHeight = part => Math.max(74, 42 + (part.ports || []).length * 19);
+                        const partsHeight = parts.reduce((total, part) => total + partHeight(part) + 18, 0);
+                        const systemHeight = Math.max(190, 92 + systemPorts.length * 24, 122 + partsHeight);
+                        const actorLayouts = [];
+                        let actorY = 90;
 
-                        let graphDef = `graph TD;\n`;
+                        actors.forEach((actor, index) => {
+                            const ports = actor.ports || [];
+                            const height = Math.max(66, 42 + ports.length * 19);
+                            actorLayouts.push({ owner: actor, id: `actor-${index}`, x: 40, y: actorY, width: ownerBoxWidth, height, ports, side: 'right' });
+                            actorY += height + 34;
+                        });
 
-                        // System Subgraph
-                        graphDef += `subgraph SystemBox ["${systemName}"]\n`;
-                        graphDef += `direction TB\n`;
-
-                        // Internal Parts
-                        console.log("System Context Data:", data);
-                        let hasParts = false;
-                        if (data.system && data.system.parts && data.system.parts.length > 0) {
-                            data.system.parts.forEach((part, i) => {
-                                const partName = (part.name || "Part").replace(/["\n\r]/g, '');
-                                graphDef += `Part${i}["«part»<br/>${partName}"]\n`;
-                                graphDef += `style Part${i} fill:#ffffff,stroke:#334155,stroke-width:1px,color:#0f172a;\n`;
-                                hasParts = true;
+                        const minHeight = Math.max(systemY + systemHeight + 40, actorY + 20, 600);
+                        const svgWidth = 980;
+                        const ownerLayouts = [{
+                            owner: system,
+                            id: 'system-owner',
+                            x: systemX,
+                            y: systemY,
+                            width: 410,
+                            height: systemHeight,
+                            ports: systemPorts,
+                            side: 'left',
+                            isSystem: true
+                        }];
+                        let partY = systemY + 76;
+                        parts.forEach((part, index) => {
+                            const height = partHeight(part);
+                            ownerLayouts.push({
+                                owner: part,
+                                id: `part-${index}`,
+                                x: systemX + 46,
+                                y: partY,
+                                width: 320,
+                                height,
+                                ports: part.ports || [],
+                                side: 'right'
                             });
+                            partY += height + 18;
+                        });
+                        ownerLayouts.push(...actorLayouts);
+
+                        const portPositions = new Map();
+                        ownerLayouts.forEach(layout => {
+                            const count = layout.ports.length;
+                            layout.ports.forEach((port, index) => {
+                                const y = layout.y + layout.height * (index + 1) / (count + 1);
+                                const x = layout.side === 'right' ? layout.x + layout.width : layout.x;
+                                portPositions.set(port['@id'], { x, y, side: layout.side, name: port.name || 'Port' });
+                            });
+                        });
+
+                        const svgElements = [];
+                        (data.interfaces || []).forEach((interfaceElement, index) => {
+                            const ends = (interfaceElement.ends || []).map(id => portPositions.get(id)).filter(Boolean);
+                            if (ends.length < 2) return;
+                            const start = ends[0];
+                            ends.slice(1).forEach(end => {
+                                const startX = start.x;
+                                const endX = end.x;
+                                const bend = Math.max(36, Math.abs(endX - startX) * 0.38);
+                                const path = `M ${startX} ${start.y} C ${startX + bend} ${start.y}, ${endX - bend} ${end.y}, ${endX} ${end.y}`;
+                                svgElements.push(`<path d="${path}" fill="none" stroke="#475569" stroke-width="1.6"><title>${escapeHtml(interfaceElement.name || `Interface ${index + 1}`)}</title></path>`);
+                            });
+                        });
+
+                        ownerLayouts.forEach(layout => {
+                            const isSystem = layout.isSystem;
+                            const fill = isSystem ? '#dbeafe' : layout.side === 'right' ? '#f8fafc' : '#ffffff';
+                            const stroke = isSystem ? '#2563eb' : '#334155';
+                            const title = isSystem
+                                ? escapeHtml(layout.owner.name || defaultTitle)
+                                : `${layout.side === 'right' && actorLayouts.includes(layout) ? '' : '«part» '}${escapeHtml(layout.owner.name || 'Part')}`;
+                            svgElements.push(`<g><rect x="${layout.x}" y="${layout.y}" width="${layout.width}" height="${layout.height}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="${isSystem ? 2 : 1.4}"/><text x="${layout.x + 12}" y="${layout.y + 23}" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#0f172a">${title}</text></g>`);
+                            layout.ports.forEach(port => {
+                                const position = portPositions.get(port['@id']);
+                                const labelX = layout.side === 'right' ? layout.x + layout.width - 96 : layout.x + 14;
+                                const textAnchor = layout.side === 'right' ? 'end' : 'start';
+                                svgElements.push(`<g><rect x="${position.x - 7}" y="${position.y - 5}" width="14" height="10" fill="#ffffff" stroke="#334155" stroke-width="1.4"/><text x="${labelX}" y="${position.y + 3}" text-anchor="${textAnchor}" font-family="Inter, sans-serif" font-size="10" fill="#334155">${escapeHtml(port.name || 'Port')}</text></g>`);
+                            });
+                        });
+                        if (actors.length === 0) {
+                            svgElements.push('<text x="40" y="70" font-family="Inter, sans-serif" font-size="12" fill="#64748b">No Actors Found</text>');
                         }
 
-                        graphDef += `end\n`; // End Subgraph
-
-                        // Style SystemBox
-                        graphDef += `style SystemBox fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e40af;\n`;
-
-                        // Actors
-                        if (data.actors && data.actors.length > 0) {
-                            data.actors.forEach((actor, index) => {
-                                const actorId = `Actor${index}`;
-                                const actorName = actor.name || "Actor";
-                                graphDef += `${actorId}["${actorName}"] --- SystemBox;\n`;
-                                graphDef += `style ${actorId} fill:#f8fafc,stroke:#94a3b8,stroke-width:1px,color:#334155;\n`;
+                        const systemName = escapeHtml(system.name || defaultTitle);
+                        container.classList.remove('mermaid');
+                        container.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${minHeight}" role="img" aria-label="${systemName} context diagram" style="max-width:none;width:100%;height:600px">${svgElements.join('')}</svg>`;
+                        const svg = container.querySelector('svg');
+                        if (svg && typeof svgPanZoom === 'function') {
+                            svgPanZoom(svg, {
+                                zoomEnabled: true,
+                                controlIconsEnabled: true,
+                                fit: true,
+                                center: true,
+                                minZoom: 0.1,
+                                maxZoom: 10
                             });
-                        } else {
-                            graphDef += `NoActors["No Actors Found"] -.-> SystemBox;\n`;
-                            graphDef += `style NoActors stroke-dasharray: 5 5;\n`;
-                        }
-
-                        if (window.mermaid) {
-                            container.textContent = graphDef;
-                            container.removeAttribute('data-processed');
-                            try {
-                                await window.mermaid.run({ nodes: [container] });
-                                // Initialize Pan Zoom
-                                const svg = container.querySelector('svg');
-                                if (svg) {
-                                    // Remove max-width to allow zooming properly
-                                    svg.style.maxWidth = 'none';
-                                    svg.style.height = '600px';
-                                    svg.style.width = '100%';
-
-                                    svgPanZoom(svg, {
-                                        zoomEnabled: true,
-                                        controlIconsEnabled: true,
-                                        fit: true,
-                                        center: true,
-                                        minZoom: 0.1,
-                                        maxZoom: 10
-                                    });
-                                }
-                            } catch (err) {
-                                console.error("Mermaid run error:", err);
-                                container.textContent = `graph TD;\nError[Rendering Error];`;
-                                window.mermaid.run({ nodes: [container] });
-                            }
                         }
                     } else {
                         console.warn(`${contextType} not found.`);
@@ -1556,6 +1711,22 @@
             } finally {
                 const overlay = document.getElementById('loading_overlay');
                 if (overlay) overlay.style.display = 'none';
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[character]);
+        }
+
+        function safeHttpUrl(value) {
+            if (typeof value !== 'string' || !value.trim()) return '';
+            try {
+                const url = new URL(value, window.location.href);
+                return ['http:', 'https:'].includes(url.protocol) ? escapeHtml(url.href) : '';
+            } catch {
+                return '';
             }
         }
 
@@ -1583,12 +1754,12 @@
                             const tr = document.createElement('tr');
                             tr.className = "hover:bg-slate-50 transition-colors";
                             tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${s.name || 'Unnamed'}</td>
-                            <td class="px-6 py-4 text-sm text-slate-500 min-w-[400px] max-w-3xl whitespace-normal break-words">${s.description || '-'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${s.contact || '-'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${s.risk || '-'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${s.effort || '-'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${(s.categories || []).join ? (s.categories || []).join(', ') : s.categories}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${escapeHtml(s.name || 'Unnamed')}</td>
+                            <td class="px-6 py-4 text-sm text-slate-500 min-w-[400px] max-w-3xl whitespace-normal break-words">${escapeHtml(s.description || '-')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${escapeHtml(s.contact || '-')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${escapeHtml(s.risk || '-')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${escapeHtml(s.effort || '-')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${escapeHtml((s.categories || []).join ? (s.categories || []).join(', ') : s.categories)}</td>
                             `;
                             tbody.appendChild(tr);
                         });
@@ -1830,24 +2001,26 @@
                 `;
 
                 requirements.forEach(req => {
+                    const uri = safeHttpUrl(req.uri);
+                    const identifier = escapeHtml(req.identifier);
                     html += `
                         <tr class="hover:bg-slate-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-blue">
-                                ${req.uri ? `<a href="${req.uri}" target="_blank" class="hover:underline">${req.identifier}</a>` : req.identifier}
+                                ${uri ? `<a href="${uri}" target="_blank" rel="noopener noreferrer" class="hover:underline">${identifier}</a>` : identifier}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">${req.name}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600 max-w-md break-words">${req.text}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600 max-w-xs break-words">${req.motivation || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">${escapeHtml(req.name)}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600 max-w-md break-words">${escapeHtml(req.text)}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600 max-w-xs break-words">${escapeHtml(req.motivation || '-')}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                     ${req.priority === 'Critical' ? 'bg-red-100 text-red-800' :
                             req.priority === 'High' ? 'bg-orange-100 text-orange-800' :
                                 'bg-green-100 text-green-800'}">
-                                    ${req.priority}
+                                    ${escapeHtml(req.priority)}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${req.obligation}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${req.stability}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${escapeHtml(req.obligation)}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${escapeHtml(req.stability)}</td>
                         </tr>
                     `;
                 });
@@ -1858,7 +2031,7 @@
 
             } catch (error) {
                 console.error("Error loading requirements:", error);
-                container.innerHTML = `<div class="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">Error loading requirements: ${error.message}</div>`;
+                container.innerHTML = `<div class="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">Error loading requirements: ${escapeHtml(error.message)}</div>`;
             }
         }
 
@@ -1907,20 +2080,22 @@
                 `;
 
                 needs.forEach(req => {
+                    const uri = safeHttpUrl(req.uri);
+                    const identifier = escapeHtml(req.identifier);
                     html += `
                         <tr class="hover:bg-slate-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-blue">
-                                ${req.uri ? `<a href="${req.uri}" target="_blank" class="hover:underline">${req.identifier}</a>` : req.identifier}
+                                ${uri ? `<a href="${uri}" target="_blank" rel="noopener noreferrer" class="hover:underline">${identifier}</a>` : identifier}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">${req.name}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600 max-w-md break-words">${req.text}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${req.stakeholders || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">${escapeHtml(req.name)}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600 max-w-md break-words">${escapeHtml(req.text)}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${escapeHtml(req.stakeholders || '-')}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                     ${req.priority === 'Critical' ? 'bg-red-100 text-red-800' :
                             req.priority === 'High' ? 'bg-orange-100 text-orange-800' :
                                 'bg-green-100 text-green-800'}">
-                                    ${req.priority}
+                                    ${escapeHtml(req.priority)}
                                 </span>
                             </td>
                         </tr>
@@ -1933,7 +2108,7 @@
 
             } catch (error) {
                 console.error("Error loading needs:", error);
-                container.innerHTML = `<div class="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">Error loading needs: ${error.message}</div>`;
+                container.innerHTML = `<div class="p-4 text-red-600 bg-red-50 rounded-lg border border-red-200">Error loading needs: ${escapeHtml(error.message)}</div>`;
             }
         }
 
@@ -2086,12 +2261,12 @@
                 `;
 
                 usecases.forEach(uc => {
-                    const descText = Array.isArray(uc.description) ? uc.description.join(' ') : (uc.description || '');
+                    const descText = escapeHtml(Array.isArray(uc.description) ? uc.description.join(' ') : (uc.description || ''));
                     const actorsStr = uc.actors || '';
                     const actorsHtml = actorsStr
                         ? actorsStr.split(',').map(a => a.trim()).filter(a => a).map(actor =>
                             `<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
-                                <i data-lucide="user" class="w-3 h-3 mr-1"></i> ${actor}
+                                <i data-lucide="user" class="w-3 h-3 mr-1"></i> ${escapeHtml(actor)}
                              </span>`
                           ).join('')
                         : '<span class="text-xs text-slate-400 italic">No actors defined</span>';
@@ -2100,7 +2275,7 @@
                     const stepsHtml = stepsStr
                         ? '<ol class="list-decimal list-inside text-sm text-slate-600 space-y-1">' +
                           stepsStr.split(',').map(s => s.trim()).filter(s => s).map(step =>
-                            `<li>${step}</li>`
+                            `<li>${escapeHtml(step)}</li>`
                           ).join('') + '</ol>'
                         : '<span class="text-xs text-slate-400 italic">No steps defined</span>';
 
@@ -2113,7 +2288,7 @@
                                         <i data-lucide="file-text" class="w-6 h-6"></i>
                                     </div>
                                 </div>
-                                <h3 class="text-lg font-bold text-slate-800 mb-2 group-hover:text-brand-blue transition-colors">${uc.name}</h3>
+                                <h3 class="text-lg font-bold text-slate-800 mb-2 group-hover:text-brand-blue transition-colors">${escapeHtml(uc.name)}</h3>
                                 <p class="text-slate-600 text-sm mb-4 line-clamp-3">${descText}</p>
 
                                 <div class="mb-4 pt-3 border-t border-slate-100">
@@ -2149,7 +2324,7 @@
                      <div class="p-8 text-center bg-red-50 rounded-xl border border-red-200">
                         <i data-lucide="alert-triangle" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
                         <h3 class="text-lg font-bold text-red-800 mb-2">Failed to Load Use Cases</h3>
-                        <p class="text-red-600">${error.message}</p>
+                        <p class="text-red-600">${escapeHtml(error.message)}</p>
                     </div>
                 `;
                 lucide.createIcons();
@@ -2342,7 +2517,7 @@
                 // Style Tweaks
                 // graphDefinition += "classDef default fill:#fff,stroke:#333,stroke-width:1px;\n";
 
-                outputDiv.innerHTML = `<div class="mermaid" style="height: 100%; width: 100%;">${graphDefinition}</div>`;
+                outputDiv.innerHTML = `<div class="mermaid" style="height: 100%; width: 100%;">${escapeHtml(graphDefinition)}</div>`;
                 outputDiv.removeAttribute('data-processed'); // Reset for re-render
 
                 if (window.mermaid) {
@@ -2370,12 +2545,12 @@
 
                     } catch (e) {
                         console.error("Mermaid Render Error", e);
-                        outputDiv.innerHTML = `<p class="text-red-500">Error rendering diagram: ${e.message}</p>`;
+                        outputDiv.innerHTML = `<p class="text-red-500">Error rendering diagram: ${escapeHtml(e.message)}</p>`;
                     }
                 }
 
             } catch (e) {
-                outputDiv.innerHTML = `<p class="text-red-500">Error parsing UVL: ${e.message}</p>`;
+                outputDiv.innerHTML = `<p class="text-red-500">Error parsing UVL: ${escapeHtml(e.message)}</p>`;
             }
         }
 
@@ -2438,10 +2613,10 @@
 
             localStorage.setItem('sysmod_view_settings', JSON.stringify(settings));
 
-            // Re-fetch quality checks as context changed
-            if (typeof fetchQualityChecks === 'function') {
-                fetchQualityChecks();
-            }
+            // Automatic quality checks are disabled; refresh only when the user requests it.
+            // if (typeof fetchQualityChecks === 'function') {
+            //     fetchQualityChecks();
+            // }
         }
 
         function loadViewSettings() {
@@ -2485,8 +2660,8 @@
                 cb.addEventListener('change', saveViewSettings);
             });
 
-            // Initial fetch of quality checks
-            fetchQualityChecks();
+            // Automatic quality checks are disabled; the user can refresh manually.
+            // fetchQualityChecks();
         });
 
         // Fetch UVL Data from API
@@ -2657,7 +2832,7 @@
             if (isClosed) {
                 drawer.classList.remove('translate-x-full');
                 drawer.classList.add('translate-x-0');
-                await fetchQualityChecks();
+                // Automatic quality checks are disabled; use the refresh button to fetch manually.
             } else {
                 drawer.classList.add('translate-x-full');
                 drawer.classList.remove('translate-x-0');
@@ -2697,7 +2872,7 @@
 
             } catch (error) {
                 console.error("Quality Check Error", error);
-                listContainer.innerHTML = `<p class="text-sm text-red-500 text-center">Error: ${error.message}</p>`;
+                listContainer.innerHTML = `<p class="text-sm text-red-500 text-center">Error: ${escapeHtml(error.message)}</p>`;
             }
         }
 
@@ -2763,10 +2938,10 @@
                         <i data-lucide="${icon}" class="w-5 h-5 ${severityColor} mt-0.5 flex-shrink-0"></i>
                         <div class="flex-1">
                             <div class="flex justify-between items-start">
-                                <h4 class="text-sm font-semibold text-slate-800">${check.title}</h4>
+                                <h4 class="text-sm font-semibold text-slate-800">${escapeHtml(check.title)}</h4>
                                 <span class="text-[10px] font-medium px-2 py-0.5 rounded-full border ${statusBg}">${statusText}</span>
                             </div>
-                            <p class="text-xs text-slate-500 mt-1">${check.description}</p>
+                            <p class="text-xs text-slate-500 mt-1">${escapeHtml(check.description)}</p>
                         </div>
                     </div>
                 `;
@@ -3054,8 +3229,7 @@
                 fetchProjectData();
             } else {
                 console.error("Missing URL parameters");
-                document.getElementById('project_name').textContent = "Missing Parameters";
-                document.getElementById('project_description').value = "Please verify the URL contains server_url, project_id, commit_id, and sysmod_project_id.";
+                showProjectCanvas("Missing URL parameters. Please verify the URL contains server_url, project_id, commit_id, and sysmod_project_id.", true);
             }
 
             drawSysmodArrows();

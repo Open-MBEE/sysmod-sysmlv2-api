@@ -3,7 +3,7 @@
 > A Flask-based REST API server, web UI, and **MCP (Model Context Protocol) server** for accessing and visualizing **SYSMOD** SysML v2 models.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-REST%20API-green)](https://flask.palletsprojects.com/)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple)](https://modelcontextprotocol.io/)
 
@@ -53,7 +53,7 @@
 | Use Cases | Displays use cases from the model |
 | Requirements | Lists system requirements with priorities and obligations |
 | Feature Tree | UVL format with Mermaid graph visualization |
-| Feature Binding Matrix | Interactive matrix for feature binding dependencies |
+| Feature Binding Matrix | Not implemented yet; endpoint returns HTTP 501 |
 | Quality Checks | Automated SYSMOD model completeness checks |
 | AI Suggestions | GPT-4o–powered suggestions to refine artifacts |
 | Cache Warmup | Bulk element loading to speed up queries |
@@ -128,7 +128,8 @@ sysmod-sysmlv2-api-mcp/
 
 ## Prerequisites
 
-- **Python 3.8+**
+- **Python 3.10+**
+- **uv** *(optional, for project syncing)*
 - **Node.js / npm** (required only for `mcp dev` inspector UI)
 - A running **SysML v2 API server** (e.g., [SysML v2 Reference Implementation](https://github.com/Systems-Modeling/SysML-v2-Release))
 - An **OpenAI API key** *(optional — required only for AI wizard steps and suggestions)*
@@ -140,26 +141,36 @@ sysmod-sysmlv2-api-mcp/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/MBSE4U/sysmod-sysmlv2-api-mcp.git
-cd sysmod-sysmlv2-api-mcp
+git clone https://github.com/Open-MBEE/sysmod-sysmlv2-api.git
+cd sysmod-sysmlv2-api
 ```
 
 ### 2. Install Python dependencies
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-This installs Flask, requests, python-dotenv, anytree, werkzeug, mbse4u-sysml-helpers, and **mcp[cli]** (the MCP server SDK).
+Runtime dependencies are declared in `pyproject.toml`. The editable install keeps the server's HTML and prompt files available from the source checkout.
 
 To enable PDF and Word document uploads in the wizard:
 ```bash
-pip install pypdf python-docx
+python -m pip install -e ".[documents]"
 ```
 
 To enable AI features (OpenAI GPT-4o / DALL-E 3):
 ```bash
-pip install openai
+python -m pip install -e ".[ai]"
+```
+
+To install the test dependency:
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+With uv, install the runtime and test dependencies with:
+```bash
+uv sync --extra dev
 ```
 
 ### 3. Configure environment variables
@@ -182,9 +193,13 @@ SYSML_SERVER_URL=http://localhost:9000
 SYSML_PROJECT_ID=<your-project-uuid>
 SYSML_COMMIT_ID=<your-commit-uuid>
 SYSML_SYSMOD_PROJECT_ID=<your-sysmod-project-element-uuid>
+
+# Comma-separated SysML API origins allowed for outbound requests
+ALLOWED_SYSML_SERVER_ORIGINS=http://localhost:9000,http://127.0.0.1:9000,http://[::1]:9000
 ```
 
 > Setting the `SYSML_*` variables means the AI agent can call tools without needing to pass IDs every time.
+> For remote SysML servers, add their exact origins (scheme, host, and port) to `ALLOWED_SYSML_SERVER_ORIGINS`. Wizard uploads are limited to 20 MB per request and supported document/text formats.
 
 ---
 
@@ -317,9 +332,9 @@ All Flask endpoints accept and return JSON (unless noted).
 |---|---|---|
 | `POST` | `/api/check-pleml` | Check if project contains a PLEML feature model |
 | `POST` | `/api/feature-bindings` | Get feature binding dependencies (`@FB`) |
-| `POST` | `/api/feature-bindings/toggle` | Create or delete a feature binding |
+| `POST` | `/api/feature-bindings/toggle` | Not implemented yet; returns HTTP 501 |
 | `POST` | `/api/feature-tree-uvl` | Get the UVL feature tree |
-| `POST` | `/api/feature-tree-sysml` | Get feature tree as Mermaid graph |
+| `POST` | `/api/feature-tree-sysml` | Feature matrix not implemented yet; returns HTTP 501 |
 
 ---
 
@@ -327,7 +342,7 @@ All Flask endpoints accept and return JSON (unless noted).
 
 | Package | Purpose |
 |---|---|
-| [`mbse4u-sysml-helpers`](https://pypi.org/project/mbse4u-sysml-helpers/) | SysML v2 API client (element queries, caching, metadata) |
+| [`mbse4u-sysmlv2-helpers`](https://pypi.org/project/mbse4u-sysmlv2-helpers/) | SysML v2 API client (element queries, caching, metadata) |
 | `flask` | Web framework and REST API |
 | `requests` | HTTP client for SysML v2 API |
 | `python-dotenv` | Load environment variables from `.env` |

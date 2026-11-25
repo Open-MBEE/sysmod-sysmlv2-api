@@ -20,6 +20,7 @@ import traceback
 import requests
 from requests.exceptions import ReadTimeout, ConnectTimeout, ConnectionError
 from functools import wraps
+from werkzeug.exceptions import HTTPException
 
 import pleml_api_helpers
 
@@ -58,12 +59,12 @@ def handle_errors(func):
             print(f"ConnectionError in {func.__name__}")
             return jsonify({"error": "Network error occurred. Failed to connect to the server."}), 503
         except requests.HTTPError as e:
-            print(f"HTTP Error in {func.__name__}: {e}")
-            return jsonify({"error": f"HTTP error: {str(e)}"}), 500
+            return jsonify({"error": "The upstream SysML server returned an error."}), 502
+        except HTTPException:
+            raise
         except Exception as e:
             traceback.print_exc()
-            print(f"Error in {func.__name__}: {e}")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": "An internal server error occurred."}), 500
     return wrapper
 
 
@@ -94,22 +95,7 @@ def api_feature_bindings():
 @pleml_blueprint.route('/api/feature-bindings/toggle', methods=['POST'])
 @handle_errors
 def api_feature_bindings_toggle():
-    input_data = request.json
-    server_url = input_data.get('server_url')
-    project_id = input_data.get('project_id')
-    commit_id = input_data.get('commit_id')
-    client_id = input_data.get('client_id')
-    supplier_id = input_data.get('supplier_id')
-    binding_id = input_data.get('binding_id')
-
-    if binding_id:
-        # Delete using the provided ID
-        success = pleml_api_helpers.delete_feature_binding(server_url, project_id, commit_id, binding_id)
-        return jsonify({"action": "deleted", "success": success})
-    else:
-        # Create
-        new_id = pleml_api_helpers.create_feature_binding(server_url, project_id, commit_id, client_id, supplier_id)
-        return jsonify({"action": "created", "id": new_id, "success": True if new_id else False})
+    return jsonify({"error": "Feature binding writes are not implemented."}), 501
 
 #
 # Get Feature Tree (UVL format)
@@ -123,66 +109,26 @@ def api_feature_tree_uvl():
     commit_id = data.get('commit_id')
     sysmod_project_id = data.get('sysmod_project_id')
 
-    print(f"/api/feature-tree-uvl called with data: {data}")
-
-    if 'FEATURETREEUVL' in _cache:
-        return jsonify(_cache['FEATURETREEUVL'])
+    cache_key = ('FEATURETREEUVL', server_url, project_id, commit_id, sysmod_project_id)
+    if cache_key in _cache:
+        return jsonify(_cache[cache_key])
 
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         return jsonify({"error": "Missing parameters"}), 400
 
     result = pleml_api_helpers.get_feature_tree_uvl(server_url, project_id, commit_id, sysmod_project_id)
-    _cache['FEATURETREEUVL'] = result
+    _cache[cache_key] = result
     if result:
         return jsonify(result)
     else:
         return None
 
 #
-# Get Feature Tree (SysML / matrix format) – currently returns dummy data
+# Get Feature Tree (SysML / matrix format)
 #
 @pleml_blueprint.route('/api/feature-tree-sysml', methods=['POST'])
 def api_feature_tree_sysml():
-    data = request.json
-    print(f"/api/feature-tree-sysml called with data: {data}")
-
-    if 'FEATURETREESYSML' in _cache:
-        return jsonify(_cache['FEATURETREESYSML'])
-
-    # Dummy Matrix Data
-    # Columns: Feature Name, Config 1, Config 2, ...
-    headers = ["Feature", "Standard", "Premium", "Sport"]
-
-    matrix_rows = [
-        {"name": "Vehicle", "values": ["Selected", "Selected", "Selected"]},
-        {"name": "Engine", "values": ["Selected", "Selected", "Selected"]},
-        {"name": "Electric", "values": ["Unselected", "Selected", "Unselected"]},
-        {"name": "Gasoline", "values": ["Selected", "Unselected", "Selected"]},
-        {"name": "Infotainment", "values": ["Unselected", "Selected", "Selected"]}
-    ]
-
-    # Dummy Tree Code (Mermaid) for visualization
-    graph_code = """graph TD
-    Vehicle --> Engine
-    Vehicle --> Infotainment
-    Engine --> Electric
-    Engine --> Gasoline
-    style Electric fill:#bbf,stroke:#333,stroke-width:2px
-    style Gasoline stroke-dasharray: 5 5
-    """
-    result = {
-        "matrix": {
-            "headers": headers,
-            "rows": matrix_rows
-        },
-        "graph_code": graph_code
-    }
-    _cache['FEATURETREESYSML'] = result
-
-    if result:
-        return jsonify(result)
-    else:
-        return None
+    return jsonify({"error": "Feature tree matrix is not implemented."}), 501
 
 
 #
@@ -191,20 +137,19 @@ def api_feature_tree_sysml():
 @pleml_blueprint.route('/api/check-pleml', methods=['POST'])
 def api_check_pleml():
     data = request.json
-    print(f"/api/check-pleml called with data: {data}")
-
     server_url = data.get('server_url')
     project_id = data.get('project_id')
     commit_id = data.get('commit_id')
 
-    if 'CHECKPLEML' in _cache:
-        return jsonify(_cache['CHECKPLEML'])
+    cache_key = ('CHECKPLEML', server_url, project_id, commit_id)
+    if cache_key in _cache:
+        return jsonify(_cache[cache_key])
 
     if not all([server_url, project_id, commit_id]):
         return jsonify({"error": "Missing parameters"}), 400
 
     result = pleml_api_helpers.check_pleml(server_url, project_id, commit_id)
-    _cache['CHECKPLEML'] = result
+    _cache[cache_key] = result
 
     if result:
         return jsonify(result)
@@ -220,4 +165,4 @@ if __name__ == '__main__':
     app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
     app.config['JSONIFY_MIMETYPE'] = 'application/json'
     app.register_blueprint(pleml_blueprint)
-    app.run(debug=True, port=5001)
+    app.run(debug=False, port=5001)

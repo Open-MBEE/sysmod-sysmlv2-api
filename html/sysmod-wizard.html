@@ -890,6 +890,21 @@
             }
         };
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[character]);
+        }
+
+        function safeImageUrl(value) {
+            try {
+                const url = new URL(value);
+                return url.protocol === 'https:' ? url.href : '';
+            } catch {
+                return '';
+            }
+        }
+
         function renderStep(stepId) {
             const container = document.getElementById('step-content');
             const data = steps[stepId];
@@ -899,22 +914,22 @@
             // Simple templating for Step 1 & 2
             let contentHtml = data.content;
             if (stepId === 1) {
-                contentHtml = contentHtml.replace('\${wizardData.systemName}', wizardData.systemName || '')
-                    .replace('\${wizardData.systemDescription}', wizardData.systemDescription || '');
+                contentHtml = contentHtml.replace('\${wizardData.systemName}', escapeHtml(wizardData.systemName || ''))
+                    .replace('\${wizardData.systemDescription}', escapeHtml(wizardData.systemDescription || ''));
             } else if (stepId === 2) {
-                contentHtml = contentHtml.replace('\${wizardData.brownfieldText || \'\'}', wizardData.brownfieldText || '');
+                contentHtml = contentHtml.replace('\${wizardData.brownfieldText || \'\'}', escapeHtml(wizardData.brownfieldText || ''));
             } else if (stepId === 3) {
-                contentHtml = contentHtml.replace('\${wizardData.problemText || \'\'}', wizardData.problemText || '');
+                contentHtml = contentHtml.replace('\${wizardData.problemText || \'\'}', escapeHtml(wizardData.problemText || ''));
             } else if (stepId === 4) {
-                contentHtml = contentHtml.replace('\${wizardData.stakeholderText || \'\'}', wizardData.stakeholderText || '');
+                contentHtml = contentHtml.replace('\${wizardData.stakeholderText || \'\'}', escapeHtml(wizardData.stakeholderText || ''));
             } else if (stepId === 5) {
-                contentHtml = contentHtml.replace('\${wizardData.systemIdeaText || \'\'}', wizardData.systemIdeaText || '');
+                contentHtml = contentHtml.replace('\${wizardData.systemIdeaText || \'\'}', escapeHtml(wizardData.systemIdeaText || ''));
             } else if (stepId === 6) {
-                contentHtml = contentHtml.replace('\${wizardData.systemReqText || \'\'}', wizardData.systemReqText || '');
+                contentHtml = contentHtml.replace('\${wizardData.systemReqText || \'\'}', escapeHtml(wizardData.systemReqText || ''));
             } else if (stepId === 7) {
-                contentHtml = contentHtml.replace('\${wizardData.useCasesText || \'\'}', wizardData.useCasesText || '');
+                contentHtml = contentHtml.replace('\${wizardData.useCasesText || \'\'}', escapeHtml(wizardData.useCasesText || ''));
             } else if (stepId === 8) {
-                contentHtml = contentHtml.replace('\${wizardData.productArchText || \'\'}', wizardData.productArchText || '');
+                contentHtml = contentHtml.replace('\${wizardData.productArchText || \'\'}', escapeHtml(wizardData.productArchText || ''));
             }
 
             container.innerHTML = `
@@ -1124,7 +1139,7 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">${file.name}</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
                         <span class="text-xs text-gray-400">(${Math.round(file.size / 1024)} KB)</span>
                     </div>
                 `;
@@ -1194,13 +1209,14 @@
                         textOutput.innerText = result.problem_statement || problemText;
                         textColumn.classList.remove('hidden');
 
-                        if (result.image_url) {
-                            imageEl.src = result.image_url;
+                        const imageUrl = safeImageUrl(result.image_url);
+                        if (imageUrl) {
+                            imageEl.src = imageUrl;
                             imageEl.classList.remove('hidden');
                             loadingEl.classList.add('hidden'); // Ensure loading is hidden if image is present
 
                             // Store for later steps
-                            wizardData.problemImageUrl = result.image_url;
+                            wizardData.problemImageUrl = imageUrl;
                         } else {
                             // Keep loading state or show error placeholder if image generation failed/skipped
                             loadingEl.classList.add('hidden');
@@ -1250,10 +1266,10 @@
                         const list = container.querySelector('.file-list');
                         list.innerHTML = data.files.map((f, index) => `
                             <div class="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded transition-colors">
-                                <input type="checkbox" id="${containerId}-file-${index}" value="${f.name}" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
+                                <input type="checkbox" id="${containerId}-file-${index}" value="${escapeHtml(f.name)}" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                 <label for="${containerId}-file-${index}" class="flex-grow text-sm text-gray-700 cursor-pointer flex items-center select-none">
                                     <i data-lucide="file-text" class="w-4 h-4 mr-2 text-gray-400"></i>
-                                    ${f.name} <span class="text-xs text-gray-400 ml-1">(${Math.round(f.size / 1024)} KB)</span>
+                                    ${escapeHtml(f.name)} <span class="text-xs text-gray-400 ml-1">(${Math.round(f.size / 1024)} KB)</span>
                                 </label>
                             </div>
                         `).join('');
@@ -1287,8 +1303,8 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">\${file.name}</span>
-                        <span class="text-xs text-gray-400">(\${Math.round(file.size/1024)} KB)</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
+                        <span class="text-xs text-gray-400">(${Math.round(file.size/1024)} KB)</span>
                     </div>
                 `;
             });
@@ -1305,7 +1321,7 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">${file.name}</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
                         <span class="text-xs text-gray-400">(${Math.round(file.size / 1024)} KB)</span>
                     </div>
                 `;
@@ -1386,7 +1402,7 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">${file.name}</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
                         <span class="text-xs text-gray-400">(${Math.round(file.size / 1024)} KB)</span>
                     </div>
                 `;
@@ -1451,13 +1467,15 @@
                             problemTextEl.innerText = "No problem statement found.";
                         }
 
-                        if (wizardData.problemImageUrl) {
-                            problemImageEl.src = wizardData.problemImageUrl;
+                        const problemImageUrl = safeImageUrl(wizardData.problemImageUrl);
+                        if (problemImageUrl) {
+                            problemImageEl.src = problemImageUrl;
                             problemImageContainer.classList.remove('hidden');
                         }
 
-                        if (result.image_url) {
-                            imageEl.src = result.image_url;
+                        const imageUrl = safeImageUrl(result.image_url);
+                        if (imageUrl) {
+                            imageEl.src = imageUrl;
                             imageEl.classList.remove('hidden');
                             loadingEl.classList.add('hidden');
                         } else {
@@ -1497,7 +1515,7 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">${file.name}</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
                         <span class="text-xs text-gray-400">(${Math.round(file.size / 1024)} KB)</span>
                     </div>
                 `;
@@ -1567,7 +1585,7 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">${file.name}</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
                         <span class="text-xs text-gray-400">(${Math.round(file.size / 1024)} KB)</span>
                     </div>
                 `;
@@ -1636,7 +1654,7 @@
                 fileList.innerHTML += `
                     <div class="flex items-center space-x-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
                         <i data-lucide="file" class="w-4 h-4 text-gray-400"></i>
-                        <span class="font-medium">${file.name}</span>
+                        <span class="font-medium">${escapeHtml(file.name)}</span>
                         <span class="text-xs text-gray-400">(${Math.round(file.size / 1024)} KB)</span>
                     </div>
                 `;

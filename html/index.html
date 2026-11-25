@@ -392,7 +392,13 @@ limitations under the License.
 
         <!-- Settings Section -->
         <div class="section" id="settings_section" style="display: none; border-color: #6b7280;">
-            <h2>Settings</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 1rem;">
+                <h2 style="margin-bottom: 0;">Settings</h2>
+                <button type="button" onclick="toggleSettings()" aria-label="Close settings" title="Close settings"
+                    style="border: none; background: transparent; color: #6b7280; font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 4px 8px; border-radius: 6px;"
+                    onmouseover="this.style.color='#111827'; this.style.background='#f3f4f6';"
+                    onmouseout="this.style.color='#6b7280'; this.style.background='transparent';">×</button>
+            </div>
 
             <div style="margin-bottom: 1rem;">
                 <label for="page_size">General Page Size</label>
@@ -452,6 +458,7 @@ limitations under the License.
         <!-- SYSMOD Projects Section -->
         <div class="section" id="sysmodProjects_section" style="display: none;">
             <h2>Select SYSMOD Project</h2>
+            <p id="sysmod_profile_status" class="result-display" role="status" style="display: none; margin-bottom: 24px;"></p>
             <label for="sysmod_project_list">Available SYSMOD Projects</label>
             <select id="sysmod_project_list" onchange="storeSelectedSYSMODProjectId()">
                 <option value="">-- Select a SYSMOD Project --</option>
@@ -632,6 +639,9 @@ limitations under the License.
             display.style.display = 'block';
 
             document.getElementById('sysmodProjects_section').style.display = 'none';
+            const profileStatus = document.getElementById('sysmod_profile_status');
+            profileStatus.textContent = '';
+            profileStatus.style.display = 'none';
             if (!commitId) return;
 
             // Show Loading Overlay
@@ -672,12 +682,43 @@ limitations under the License.
                     console.log("Skipping initial cache warmup as per settings.");
                 }
 
+                const sysmodVersion = '5.1.4';
+                const serverUrl = document.getElementById('server_url').value;
+                const projectId = document.getElementById('project_list').value || document.getElementById('manual_project_id').value;
+                overlayTitle.textContent = "Checking SYSMOD Profile";
+                overlayText.textContent = `SYSMOD v${sysmodVersion} is being checked and loaded...`;
+                const profileResponse = await fetch('/api/load_sysmod_profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ server_url: serverUrl, project_id: projectId, commit_id: commitId, sysmod_version: sysmodVersion })
+                });
+                const profileResult = await profileResponse.json();
+                if (!profileResponse.ok) {
+                    throw new Error(profileResult.error || 'Failed to check the SYSMOD profile.');
+                }
+                if (!profileResult.success) {
+                    const status = document.getElementById('sysmod_profile_status');
+                    status.textContent = `SYSMOD v${sysmodVersion} is not present in this project.`;
+                    status.style.display = 'block';
+                    document.getElementById('sysmodProjects_section').style.display = 'block';
+                    overlay.style.display = 'none';
+                    return;
+                }
+
+                const status = document.getElementById('sysmod_profile_status');
+                status.textContent = `SYSMOD v${sysmodVersion} checked and loaded.`;
+                status.style.display = 'block';
+
                 // Proceed to next step
                 await querySYSMODProjects(overlay, overlayTitle, overlayText);
 
             } catch (error) {
                 console.error(error);
-                overlay.style.display = 'none'; // Ensure hidden on error if not handled inside
+                const status = document.getElementById('sysmod_profile_status');
+                status.textContent = `Could not check or load the SYSMOD profile: ${error.message}`;
+                status.style.display = 'block';
+                document.getElementById('sysmodProjects_section').style.display = 'block';
+                overlay.style.display = 'none';
             }
         }
 

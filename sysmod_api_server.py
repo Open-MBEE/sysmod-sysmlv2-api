@@ -1,7 +1,7 @@
 #
 #   Simple Flask server for the SYSMOD Methodology
 #
-#    Copyright 2025 Tim Weilkiens
+#    Copyright 2026 Tim Weilkiens
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from flask import Flask, send_from_directory, request, jsonify, Response
+from flask import Flask, abort, send_from_directory, request, jsonify, Response
 import requests
 import os
+from pathlib import Path
 import werkzeug
 from anytree import NodeMixin, RenderTree
 import sys
@@ -30,6 +31,8 @@ import importlib
 from typing import Optional
 from functools import wraps
 from dotenv import load_dotenv
+from urllib.parse import urlparse
+from werkzeug.exceptions import HTTPException
 
 load_dotenv() # Load environment variables from .env file
 
@@ -39,12 +42,12 @@ from enum import Enum
 from pleml_api_server import pleml_blueprint, init_pleml_cache
 
 class SysmodContextKinds(Enum):
-    BROWNFIELD = 'SYSMOD::Project::brownfieldSystemContext'
+    BROWNFIELD = 'SYSMOD::Project::brownfieldContext'
     SYSTEMIDEA = 'SYSMOD::Project::systemIdeaContext'
-    SYSTEM = 'SYSMOD::Project::requirementSystemContext'
-    FUNCTIONAL = 'SYSMOD::Project::functionalSystemContext'
-    LOGICAL = 'SYSMOD::Project::logicalSystemContext'
-    PRODUCT = 'SYSMOD::Project::productSystemContext'
+    SYSTEM = 'SYSMOD::Project::specificationContext'
+    FUNCTIONAL = 'SYSMOD::Project::functionalContext'
+    LOGICAL = 'SYSMOD::Project::logicalContext'
+    PRODUCT = 'SYSMOD::Project::productContext'
 
 # OpenAI Configuration
 # These keys should ideally be loaded from environment variables or a secure configuration management system,
@@ -56,6 +59,7 @@ OPENAI_ORG_ID = os.environ.get("OPENAI_ORG_ID", "") # Example: Load from environ
 app = Flask(__name__, static_folder='html')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True  # Optional: Pretty print JSON
 app.config['JSONIFY_MIMETYPE'] = 'application/json'
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 
 # Global SYSMOD Cache
 # Value: Dict[sysmod_element, element_data]
@@ -64,6 +68,93 @@ SYSMOD_CACHE = {}
 # Register the PLeML blueprint (provides all /api/feature endpoints)
 app.register_blueprint(pleml_blueprint)
 init_pleml_cache(SYSMOD_CACHE)
+
+ALLOWED_UPLOAD_EXTENSIONS = {'.csv', '.docx', '.json', '.md', '.pdf', '.sysml', '.txt', '.xml'}
+
+
+def sysmod_cache_key(name, server_url, project_id, commit_id, sysmod_project_id):
+    server_url = server_url.rstrip('/') if isinstance(server_url, str) else server_url
+    values = (server_url, project_id, commit_id, sysmod_project_id)
+    return (name, *(value if value is None or isinstance(value, str) else repr(value) for value in values))
+
+
+def get_upload_root(system_name):
+    safe_name = werkzeug.utils.secure_filename(system_name or '')
+    if not safe_name or len(safe_name) > 80:
+        abort(400, description='Invalid system name.')
+
+    upload_root = (Path(app.root_path) / 'uploads').resolve()
+    system_root = (upload_root / safe_name).resolve()
+    try:
+        system_root.relative_to(upload_root)
+    except ValueError:
+        abort(400, description='Invalid system name.')
+    return system_root
+
+
+def resolve_existing_upload(upload_root, relative_path):
+    if not relative_path:
+        return None
+    root = Path(upload_root).resolve()
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def validate_upload(file):
+    filename = werkzeug.utils.secure_filename(file.filename or '')
+    if not filename or Path(filename).suffix.lower() not in ALLOWED_UPLOAD_EXTENSIONS:
+        abort(400, description='Unsupported or invalid upload filename.')
+    return filename
+
+
+@app.before_request
+def validate_upstream_request():
+    if not request.path.startswith('/api/') and request.path != '/get_needs':
+        return
+
+    data = request.get_json(silent=True) or request.form or request.args
+    if not hasattr(data, 'get'):
+        return jsonify({'error': 'Request body must be a JSON object.'}), 400
+    server_url = data.get('server_url')
+    if not server_url:
+        return
+    if not isinstance(server_url, str):
+        return jsonify({'error': 'server_url must be a string URL.'}), 400
+
+    try:
+        parsed = urlparse(server_url)
+    except ValueError:
+        return jsonify({'error': 'server_url must be a valid HTTP(S) URL.'}), 400
+    allowed_origins = {
+        origin.strip().rstrip('/').lower()
+        for origin in os.environ.get(
+            'ALLOWED_SYSML_SERVER_ORIGINS',
+            'http://localhost:9000,http://127.0.0.1:9000,http://[::1]:9000'
+        ).split(',')
+        if origin.strip()
+    }
+    origin = f'{parsed.scheme.lower()}://{parsed.netloc.lower()}'
+    if (parsed.scheme not in {'http', 'https'} or not parsed.hostname
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or origin not in allowed_origins):
+        return jsonify({'error': 'server_url must use an allowed HTTP(S) origin.'}), 400
+
+    project_id = data.get('project_id')
+    commit_id = data.get('commit_id')
+    model_id = data.get('sysmod_project_id') or data.get('element_id')
+    if any(value is not None and not isinstance(value, str)
+           for value in (project_id, commit_id, model_id)):
+        return jsonify({'error': 'Model identifiers must be strings.'}), 400
+    return None
+
+
+@app.errorhandler(413)
+def request_too_large(_error):
+    return jsonify({'error': 'Request exceeds the 20 MB limit.'}), 413
 
 @app.route('/')
 def serve_index():
@@ -97,12 +188,13 @@ def handle_errors(func):
             print(f"ConnectionError in {func.__name__}")
             return jsonify({"error": "Network error occurred. Failed to connect to the server."}), 503
         except requests.HTTPError as e:
-            print(f"HTTP Error in {func.__name__}: {e}")
-            return jsonify({"error": f"HTTP error: {str(e)}"}), 500
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Error in {func.__name__}: {e}")
-            return jsonify({"error": str(e)}), 500
+            app.logger.warning("HTTP error in %s: %s", func.__name__, e.response.status_code if e.response else "unknown")
+            return jsonify({"error": "The upstream SysML server returned an error."}), 502
+        except HTTPException:
+            raise
+        except Exception:
+            app.logger.exception("Unhandled error in %s", func.__name__)
+            return jsonify({"error": "An internal server error occurred."}), 500
     return wrapper
 
 ################################################################################################################
@@ -117,7 +209,6 @@ def handle_errors(func):
 @handle_errors
 def api_cache_warmup():
     input_data = request.json
-    print(f"/api/cache/warmup called with data: {input_data}")
     
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -137,7 +228,6 @@ def api_cache_warmup():
 @handle_errors
 def api_projects():
     input_data = request.json
-    print(f"/api/projects called with data: {input_data}")
     server_url = input_data.get('server_url')
     if not server_url:
         return jsonify({"error": "server_url is required"}), 400
@@ -156,7 +246,6 @@ def api_projects():
 @handle_errors
 def api_commits():
     input_data = request.json
-    print(f"/api/commits called with data: {input_data}")
 
     # Extract input values
     server_url = input_data.get('server_url')
@@ -174,7 +263,6 @@ def api_commits():
 @handle_errors
 def api_sysmod_projects():
     input_data = request.json
-    print(f"/api/sysmod_projects called with data: {input_data}")
 
     # Required inputs
     server_url = input_data.get('server_url')
@@ -189,6 +277,25 @@ def api_sysmod_projects():
     print(f"Returning {len(simplified_projects)} simplified projects.")
     return jsonify(simplified_projects)
 
+
+@app.route('/api/load_sysmod_profile', methods=['POST'])
+@handle_errors
+def api_load_sysmod_profile():
+    input_data = request.json or {}
+    server_url = input_data.get('server_url')
+    project_id = input_data.get('project_id')
+    commit_id = input_data.get('commit_id')
+    sysmod_version = input_data.get('sysmod_version')
+
+    if not server_url or not project_id or not commit_id:
+        raise ValueError("Server_url, project_id, and commit_id are required.")
+    if not isinstance(sysmod_version, str) or not sysmod_version.strip():
+        raise ValueError("sysmod_version is required.")
+
+    loaded = sysmod_api_helpers.load_sysmod_profile(server_url, project_id, commit_id, sysmod_version.strip())
+    return jsonify({"success": loaded, "sysmod_version": sysmod_version.strip()})
+
+
 #
 # Get Project Details (Name + Documentation)
 #
@@ -196,27 +303,20 @@ def api_sysmod_projects():
 @handle_errors
 def api_sysmod_project():
     input_data = request.json
-    print(f"\n/api/sysmod_project called with data: {input_data}")
 
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
     commit_id = input_data.get('commit_id')
     sysmod_project_id = input_data.get('element_id')
 
-    if 'PROJECT_ID' in SYSMOD_CACHE and SYSMOD_CACHE['PROJECT_ID'] == sysmod_project_id:
-        if 'PROJECT' in SYSMOD_CACHE:
-            print("Returning cached project") 
-            return jsonify(SYSMOD_CACHE['PROJECT'])
-    else:
-        SYSMOD_CACHE.clear()
-
+    project_cache_key = sysmod_cache_key('PROJECT', server_url, project_id, commit_id, sysmod_project_id)
+    if project_cache_key in SYSMOD_CACHE:
+        return jsonify(SYSMOD_CACHE[project_cache_key])
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         raise ValueError("server_url, project_id, commit_id, and sysmod_project_id are required.")
 
     response_data = sysmod_api_helpers.get_sysmod_project(server_url, project_id, commit_id, sysmod_project_id)
-    print(f"Returning sysmod project: {response_data}")
-    SYSMOD_CACHE['PROJECT_ID'] = sysmod_project_id
-    SYSMOD_CACHE['PROJECT'] = response_data
+    SYSMOD_CACHE[project_cache_key] = response_data
     return jsonify(response_data)
 
 
@@ -227,7 +327,6 @@ def api_sysmod_project():
 @handle_errors
 def api_element():
     input_data = request.json
-    print(f"/api/element called with data: {input_data}")
 
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -255,24 +354,22 @@ def api_element():
 @handle_errors
 def api_problem_statement():
     input_data = request.json
-    print(f"\n/api/problem-statement called with data: {input_data}")
-
-    if 'PROBLEMSTATEMENT' in SYSMOD_CACHE:
-        print("Returning cached problem statement") 
-        return jsonify(SYSMOD_CACHE['PROBLEMSTATEMENT'])
 
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
     commit_id = input_data.get('commit_id')
     sysmod_project_id = input_data.get('sysmod_project_id') # This is the project element ID
+    cache_key = sysmod_cache_key('PROBLEMSTATEMENT', server_url, project_id, commit_id, sysmod_project_id)
 
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         raise ValueError("server_url, project_id, commit_id, and sysmod_project_id are required.")
 
+    if cache_key in SYSMOD_CACHE:
+        return jsonify(SYSMOD_CACHE[cache_key])
+
     problem_stmt = sysmod_api_helpers.get_problem_statement(server_url, project_id, commit_id, sysmod_project_id)
     if problem_stmt:
-        print(f"Returning problem statement: {problem_stmt}")   
-        SYSMOD_CACHE['PROBLEMSTATEMENT'] = problem_stmt
+        SYSMOD_CACHE[cache_key] = problem_stmt
         return jsonify(problem_stmt)
     else:
         return jsonify({"error": "Problem statement not found"}), 404
@@ -284,7 +381,6 @@ def api_problem_statement():
 @handle_errors
 def api_save_problem_statement():
     input_data = request.json
-    print(f"/api/problem-statement/save called with data: {input_data}")
 
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -296,12 +392,11 @@ def api_save_problem_statement():
         raise ValueError("server_url, project_id, commit_id, and sysmod_project_id are required.")
 
     # Prepare for saving logic (Stub)
-    print(f"Would save new problem statement: '{new_text}' to project {sysmod_project_id}")
     problem_stmt = sysmod_api_helpers.get_problem_statement(server_url, project_id, commit_id, sysmod_project_id)
-    print(f"Current problem statement: '{problem_stmt}'")
     new_commit_id = mbse4u_sysmlv2_helpers.update_model_element(server_url, project_id, commit_id, problem_stmt.get('id'), "body", new_text)
     print(f"New commit ID: {new_commit_id}")
-    return jsonify({"status": "success", "message": "Problem statement saved (simulation).", "commit_id": new_commit_id})
+    SYSMOD_CACHE.clear()
+    return jsonify({"status": "success", "message": "Problem statement saved.", "commit_id": new_commit_id})
 
 #
 # Get System Idea
@@ -310,7 +405,6 @@ def api_save_problem_statement():
 @handle_errors
 def api_system_idea():
     input_data = request.json
-    print(f"/api/system-idea called with data: {input_data}")
 
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -337,11 +431,8 @@ def api_context():
     sysmod_project_id = input_data.get('sysmod_project_id')
     context_type = input_data.get('context_type')
 
-    print(f"\n/api/sysmod-context called with data: {input_data}")
 
-    if context_type in SYSMOD_CACHE:
-        print("Returning cached context") 
-        return jsonify(SYSMOD_CACHE[context_type])
+    cache_key = sysmod_cache_key(context_type, server_url, project_id, commit_id, sysmod_project_id)
 
     if not context_type in SysmodContextKinds._member_map_:
         print(f"Unknown context type: {context_type}")
@@ -350,8 +441,11 @@ def api_context():
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         raise ValueError("Required parameters missing.")
 
+    if cache_key in SYSMOD_CACHE:
+        return jsonify(SYSMOD_CACHE[cache_key])
+
     context = sysmod_api_helpers.get_full_context(server_url, project_id, commit_id, sysmod_project_id, SysmodContextKinds[context_type].value)
-    SYSMOD_CACHE[context_type] = context
+    SYSMOD_CACHE[cache_key] = context
     return jsonify(context)
 
 #
@@ -361,7 +455,6 @@ def api_context():
 @handle_errors
 def api_requirements():
     input_data = request.json
-    print(f"/api/sysmod-requirements called with data: {input_data}")
     
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -382,7 +475,6 @@ def api_requirements():
 @handle_errors
 def api_needs():
     input_data = request.json
-    print(f"/get_needs called with data: {input_data}")
     
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -403,7 +495,6 @@ def api_needs():
 @handle_errors
 def api_usecases():
     input_data = request.json
-    print(f"/api/sysmod-usecases called with data: {input_data}")
     
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -432,13 +523,13 @@ def api_stakeholders():
     if not all([server_url, project_id, commit_id, sysmod_project_id]):
         raise ValueError("Required parameters missing.")
 
-    if 'STAKEHOLDERS' in SYSMOD_CACHE:
-        return jsonify(SYSMOD_CACHE['STAKEHOLDERS'])
+    cache_key = sysmod_cache_key('STAKEHOLDERS', server_url, project_id, commit_id, sysmod_project_id)
+    if cache_key in SYSMOD_CACHE:
+        return jsonify(SYSMOD_CACHE[cache_key])
 
     stakeholders = sysmod_api_helpers.get_stakeholders(server_url, project_id, commit_id, sysmod_project_id)
     if stakeholders:
-        SYSMOD_CACHE['STAKEHOLDERS'] = stakeholders
-        print(f"Stakeholders: {stakeholders}")  
+        SYSMOD_CACHE[cache_key] = stakeholders
         return jsonify(stakeholders)
     else:
         return None
@@ -446,7 +537,6 @@ def api_stakeholders():
 @app.route('/api/quality-checks', methods=['POST'])
 def api_quality_checks():
     data = request.json
-    print(f"\n/api/quality-checks called with data: {data}")
     
     server_url = data.get('server_url')
     project_id = data.get('project_id')
@@ -469,12 +559,13 @@ def api_quality_checks():
         return jsonify(quality_checks)
 
     if 'problem_statement' in activated_views:
+        problem_statement_key = sysmod_cache_key('PROBLEMSTATEMENT', server_url, project_id, commit_id, sysmod_project_id)
         problem_stmt = None
-        if 'PROBLEMSTATEMENT' in SYSMOD_CACHE:
-            problem_stmt = SYSMOD_CACHE['PROBLEMSTATEMENT']
+        if problem_statement_key in SYSMOD_CACHE:
+            problem_stmt = SYSMOD_CACHE[problem_statement_key]
         else:
             problem_stmt = sysmod_api_helpers.get_problem_statement(server_url, project_id, commit_id, sysmod_project_id)   
-            SYSMOD_CACHE['PROBLEMSTATEMENT'] = problem_stmt
+            SYSMOD_CACHE[problem_statement_key] = problem_stmt
 
         if not problem_stmt:
             quality_checks.append({
@@ -517,7 +608,6 @@ def api_quality_checks():
 @handle_errors
 def api_sysmod_atlas():
     input_data = request.json
-    print(f"/api/sysmod-atlas called with data: {input_data}")
     
     server_url = input_data.get('server_url')
     project_id = input_data.get('project_id')
@@ -530,6 +620,9 @@ def api_sysmod_atlas():
 
     print(f"Getting SYSMOD atlas for project {sysmod_project_id}")
     mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+
+    def cache_key(name):
+        return sysmod_cache_key(name, server_url, project_id, commit_id, sysmod_project_id)
     
     atlas = {
         "FEATURE": False,
@@ -547,15 +640,21 @@ def api_sysmod_atlas():
     }
 
     # 1. FEATURE (Feature Tree)
-    if 'FEATURETREEUVL' in SYSMOD_CACHE:
+    if cache_key('FEATURETREEUVL') in SYSMOD_CACHE:
         atlas["FEATURE"] = True 
     elif loadAll:
         feature_tree_uvl = sysmod_api_helpers.get_feature_tree_uvl(server_url, project_id, commit_id, sysmod_project_id)
         if feature_tree_uvl:
             atlas["FEATURE"] = True
-            SYSMOD_CACHE['FEATURETREEUVL'] = feature_tree_uvl
+            SYSMOD_CACHE[cache_key('FEATURETREEUVL')] = feature_tree_uvl
 
     # 2. Check Context Kinds
+
+    part_usages = []
+    if not loadAll:
+        part_usages = mbse4u_sysmlv2_helpers.get_contained_elements(
+            server_url, project_id, commit_id, sysmod_project_id, 'PartUsage'
+        )
     
     # Mapping from Enum Name to Frontend Grid ID Suffix
     kind_to_grid_map = {
@@ -572,9 +671,9 @@ def api_sysmod_atlas():
         atlas_key = kind_to_grid_map.get(kind.name, kind.name)
         
         # Check Cache using the Enum Name (as stored in api_context)
-        cache_key = kind.name
+        context_cache_key = cache_key(kind.name)
         
-        if cache_key in SYSMOD_CACHE:
+        if context_cache_key in SYSMOD_CACHE:
             atlas[atlas_key] = True
         elif loadAll:
             try:
@@ -582,7 +681,7 @@ def api_sysmod_atlas():
                 ctx_data = sysmod_api_helpers.get_full_context(server_url, project_id, commit_id, sysmod_project_id, kind.value)
                 if ctx_data:
                     atlas[atlas_key] = True
-                    SYSMOD_CACHE[cache_key] = ctx_data
+                    SYSMOD_CACHE[context_cache_key] = ctx_data
             except Exception as e:
                 print(f"Error loading {kind.name}: {e}")
         else:
@@ -595,13 +694,13 @@ def api_sysmod_atlas():
                     atlas[atlas_key] = True
 
     # 3. STAKEHOLDERS
-    if 'STAKEHOLDERS' in SYSMOD_CACHE:
+    if cache_key('STAKEHOLDERS') in SYSMOD_CACHE:
         atlas["STAKE"] = True
     elif loadAll:
         stakeholders = sysmod_api_helpers.get_stakeholders(server_url, project_id, commit_id, sysmod_project_id)
         if stakeholders:
             atlas["STAKE"] = True
-            SYSMOD_CACHE['STAKEHOLDERS'] = stakeholders
+            SYSMOD_CACHE[cache_key('STAKEHOLDERS')] = stakeholders
     else:
         # Light Check
         if mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, part_usages, 'projectStakeholders'):
@@ -614,13 +713,13 @@ def api_sysmod_atlas():
                     break
 
     # 4. PROBLEM STATEMENT
-    if 'PROBLEMSTATEMENT' in SYSMOD_CACHE:
+    if cache_key('PROBLEMSTATEMENT') in SYSMOD_CACHE:
         atlas["PS"] = True
     elif loadAll:
         ps = sysmod_api_helpers.get_problem_statement(server_url, project_id, commit_id, sysmod_project_id)
         if ps:
             atlas["PS"] = True
-            SYSMOD_CACHE['PROBLEMSTATEMENT'] = ps
+            SYSMOD_CACHE[cache_key('PROBLEMSTATEMENT')] = ps
     else:
         # Light Check
         concern_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'ConcernUsage')
@@ -632,13 +731,13 @@ def api_sysmod_atlas():
                  atlas["PS"] = True
 
     # 5. USE CASES
-    if 'USECASES' in SYSMOD_CACHE:
+    if cache_key('USECASES') in SYSMOD_CACHE:
         atlas["UC"] = True
     elif loadAll:
         ucs = sysmod_api_helpers.get_sysmod_usecases(server_url, project_id, commit_id, sysmod_project_id)
         if ucs:
             atlas["UC"] = True
-            SYSMOD_CACHE['USECASES'] = ucs
+            SYSMOD_CACHE[cache_key('USECASES')] = ucs
     else:
         # Light Check
         uc_usages = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'UseCaseUsage')
@@ -650,13 +749,13 @@ def api_sysmod_atlas():
                   atlas["UC"] = True
             
     # 6. REQUIREMENTS
-    if 'REQUIREMENTS' in SYSMOD_CACHE:
+    if cache_key('REQUIREMENTS') in SYSMOD_CACHE:
         atlas["RE"] = True
     elif loadAll:
         reqs = sysmod_api_helpers.get_sysmod_requirements(server_url, project_id, commit_id, sysmod_project_id)
         if reqs:
             atlas["RE"] = True
-            SYSMOD_CACHE['REQUIREMENTS'] = reqs
+            SYSMOD_CACHE[cache_key('REQUIREMENTS')] = reqs
     else:
         # Light Check
         req_usages_generic = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, sysmod_project_id, 'RequirementUsage')
@@ -668,13 +767,13 @@ def api_sysmod_atlas():
                 atlas["RE"] = True
 
     # 6b. NEEDS
-    if 'NEEDS' in SYSMOD_CACHE:
+    if cache_key('NEEDS') in SYSMOD_CACHE:
         atlas["NEEDS"] = True
     elif loadAll:
         needs = sysmod_api_helpers.get_sysmod_needs(server_url, project_id, commit_id, sysmod_project_id)
         if needs:
             atlas["NEEDS"] = True
-            SYSMOD_CACHE['NEEDS'] = needs
+            SYSMOD_CACHE[cache_key('NEEDS')] = needs
     else:
         # Light Check (Since Needs might just be RequirementUsages, let's keep it simple for now and do a generic check or true if we have req usages)
         if req_usages_generic:
@@ -692,7 +791,6 @@ def api_sysmod_atlas():
 @handle_errors 
 def api_ai_suggestion_problem_statement():
     input_data = request.json
-    print(f"/api/ai-suggestion_problem_statement called with data: {input_data}")
     
     text = input_data.get('text', '')
     
@@ -730,7 +828,6 @@ The rewritten statement must:
 @handle_errors
 def api_wizard_project_setup():
     input_data = request.json
-    print(f"/api/wizard/project-setup called with data: {input_data}")
     
     name = input_data.get('name', 'MySystem')
     description = input_data.get('description', '')
@@ -800,7 +897,7 @@ def read_upload_file_content(file_path, filename):
 @handle_errors
 def api_wizard_get_files():
     system_name = request.args.get('systemName', 'MySystem')
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     
     files_list = []
     if os.path.exists(upload_root):
@@ -827,10 +924,9 @@ def api_wizard_brownfield():
     files = request.files.getlist('files')
     sysml_code = request.form.get('sysmlCode', '')
 
-    print(f"/api/wizard/brownfield called. System: {system_name}, Files: {len(files)}")
-    print(f"Description: {description}")
+    print(f"/api/wizard/brownfield called. Files: {len(files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'brownfield')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -840,7 +936,7 @@ def api_wizard_brownfield():
     # Process new uploads
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -852,11 +948,8 @@ def api_wizard_brownfield():
     existing_files = request.form.getlist('existingFiles')
     for rel_path in existing_files:
         # Prevent traversal
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-            
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -909,9 +1002,9 @@ def api_wizard_problem():
     sysml_code = request.form.get('sysmlCode', '')
     files = request.files.getlist('files')
     
-    print(f"/api/wizard/problem called. System: {system_name}, Files: {len(files)}")
+    print(f"/api/wizard/problem called. Files: {len(files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'problem')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -921,7 +1014,7 @@ def api_wizard_problem():
     # Process new uploads
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -932,10 +1025,8 @@ def api_wizard_problem():
     # Process existing selected files
     existing_files = request.form.getlist('existingFiles')
     for rel_path in existing_files:
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -993,9 +1084,9 @@ def api_wizard_stakeholders():
     files = request.files.getlist('files')
     existing_files = request.form.getlist('existingFiles')
     
-    print(f"/api/wizard/stakeholders called. System: {system_name}, New Files: {len(files)}, Existing Files: {len(existing_files)}")
+    print(f"/api/wizard/stakeholders called. New files: {len(files)}, existing files: {len(existing_files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'stakeholders')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -1005,7 +1096,7 @@ def api_wizard_stakeholders():
     # Process new uploads
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -1015,10 +1106,8 @@ def api_wizard_stakeholders():
 
     # Process existing selected files
     for rel_path in existing_files:
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -1048,7 +1137,6 @@ def api_wizard_stakeholders():
     suggestion = ""
     api_key = os.environ.get("OPENAI_API_KEY") or request.form.get('api_key')
     
-    print(f"Stakeholder Prompt: {prompt}")
 
     if api_key:
         print("Calling AI for Stakeholder Analysis...")
@@ -1073,9 +1161,9 @@ def api_wizard_system_idea():
     files = request.files.getlist('files')
     existing_files = request.form.getlist('existingFiles')
     
-    print(f"/api/wizard/system-idea called. System: {system_name}, New Files: {len(files)}, Existing Files: {len(existing_files)}")
+    print(f"/api/wizard/system-idea called. New files: {len(files)}, existing files: {len(existing_files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'system-idea')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -1084,7 +1172,7 @@ def api_wizard_system_idea():
     
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -1093,10 +1181,8 @@ def api_wizard_system_idea():
 
     existing_files = request.form.getlist('existingFiles')
     for rel_path in existing_files:
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -1149,7 +1235,6 @@ def api_wizard_system_idea():
              if doc_match:
                  description_text = doc_match.group(1).strip()
              
-        print(f"System Idea Description: {description_text}")
         # Generate Image
         image_prompt = f"Create a photo realistic image of the following system idea. Avoid violation of guardrails and feel free to change the image accordingly: {description_text}"
         image_url = sysmod_api_helpers.generate_image(image_prompt, api_key)
@@ -1179,9 +1264,9 @@ def api_wizard_system_requirements():
     files = request.files.getlist('files')
     existing_files = request.form.getlist('existingFiles')
     
-    print(f"/api/wizard/system-requirements called. System: {system_name}, New Files: {len(files)}, Existing Files: {len(existing_files)}")
+    print(f"/api/wizard/system-requirements called. New files: {len(files)}, existing files: {len(existing_files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'system-requirements')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -1191,7 +1276,7 @@ def api_wizard_system_requirements():
     # Process new uploads
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -1200,10 +1285,8 @@ def api_wizard_system_requirements():
 
     # Process existing selected files
     for rel_path in existing_files:
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -1256,9 +1339,9 @@ def api_wizard_use_cases():
     files = request.files.getlist('files')
     existing_files = request.form.getlist('existingFiles')
     
-    print(f"/api/wizard/use-cases called. System: {system_name}, New Files: {len(files)}, Existing Files: {len(existing_files)}")
+    print(f"/api/wizard/use-cases called. New files: {len(files)}, existing files: {len(existing_files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'use-cases')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -1267,7 +1350,7 @@ def api_wizard_use_cases():
     
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -1276,10 +1359,8 @@ def api_wizard_use_cases():
 
     existing_files = request.form.getlist('existingFiles')
     for rel_path in existing_files:
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -1310,7 +1391,6 @@ def api_wizard_use_cases():
     api_key = os.environ.get("OPENAI_API_KEY") or request.form.get('api_key')
     
 
-    print(f"Use CasePrompt: {prompt}")
 
     if api_key:
         print("Calling AI for Use Case Analysis...")
@@ -1335,9 +1415,9 @@ def api_wizard_product_arch():
     files = request.files.getlist('files')
     existing_files = request.form.getlist('existingFiles')
     
-    print(f"/api/wizard/product-arch called. System: {system_name}, New Files: {len(files)}, Existing Files: {len(existing_files)}")
+    print(f"/api/wizard/product-arch called. New files: {len(files)}, existing files: {len(existing_files)}")
     
-    upload_root = os.path.join(app.root_path, 'uploads', system_name)
+    upload_root = get_upload_root(system_name)
     upload_dir = os.path.join(upload_root, 'product-arch')
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -1347,7 +1427,7 @@ def api_wizard_product_arch():
     # Process new uploads
     for file in files:
         if file.filename:
-            filename = werkzeug.utils.secure_filename(file.filename)
+            filename = validate_upload(file)
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
             saved_files.append(filename)
@@ -1356,10 +1436,8 @@ def api_wizard_product_arch():
 
     # Process existing selected files
     for rel_path in existing_files:
-        if '..' in rel_path or rel_path.startswith('/'):
-            continue
-        file_path = os.path.join(upload_root, rel_path)
-        if os.path.exists(file_path):
+        file_path = resolve_existing_upload(upload_root, rel_path)
+        if file_path:
              filename = os.path.basename(rel_path)
              content = read_upload_file_content(file_path, filename)
              file_contents += f"\n--- File (Existing): {filename} ---\n{content}\n"
@@ -1407,4 +1485,4 @@ def api_wizard_product_arch():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

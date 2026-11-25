@@ -81,7 +81,7 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
     Retrieves the container for dependency relationships annotated with @featureBindings.
     """
     fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
-    print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+    print(f"Feature binding metadata definitions found: {len(fb_metadata_id_map)}")
     fb_id = fb_metadata_id_map.get('featureBindings')
 
     if not fb_id:
@@ -106,7 +106,7 @@ def get_feature_bindings(server_url, project_id, commit_id):
 
     # 1. Find ID of MetadataDefinition "FB"
     fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['FB'])
-    print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+    print(f"Feature binding metadata definitions found: {len(fb_metadata_id_map)}")
     fb_id = fb_metadata_id_map.get('FB')
 
     if not fb_id:

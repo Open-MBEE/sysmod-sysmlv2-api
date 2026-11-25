@@ -21,11 +21,11 @@ import os
 
 def get_sysmod_projects(server_url, project_id, commit_id):
     """
-    Retrieves list of SYSMOD concepts with metadata concept_name and concept_kind 
+    Retrieves list of SYSMOD projects
     """
     
     project_ids = mbse4u_sysmlv2_helpers.get_user_defined_concepts(server_url, project_id, commit_id, 'project', 'OccurrenceDefinition', 'SYSMOD::Project')    
-    simplified_projects = []
+    projects = []
     
     for item in project_ids:
         # Fetch the actual element to get its name if it's an ID, otherwise use the element directly
@@ -35,28 +35,98 @@ def get_sysmod_projects(server_url, project_id, commit_id):
             el = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), item)
             
         if el:
-            simplified_projects.append({'name': el.get('declaredName'), '@id': el.get('@id')})
+            projects.append({'name': el.get('declaredName'), '@id': el.get('@id')})
 
-    return simplified_projects
+    return projects
 
-def get_sysmod_project(server_url, project_id, commit_id, element_id):
+
+def load_sysmod_profile(server_url, project_id, commit_id, sysmod_version):
+    """Placeholder for loading a SYSMOD profile version."""
+    print(f"\nCalled load_sysmod_profile with sysmod_version: {sysmod_version}, server_url: {server_url}, project_id: {project_id}, commit_id: {commit_id}")
+   
+    definitions = mbse4u_sysmlv2_helpers.get_elements_byKind_fromAPI(server_url, project_id, commit_id, "MetadataDefinition")
+    print(f"Found {len(definitions)} MetadataDefinition(s)")
+    for definition in definitions:
+        print(f"Processing MetadataDefinition: {definition.get('declaredName')}")
+        if 'SYSMOD' in definition.get('declaredName', ''):
+            if definition.get('declaredName') == 'SYSMOD':
+                metadata_usages = mbse4u_sysmlv2_helpers.get_metadatausage_annotatedElement_ids(
+                    server_url, project_id, commit_id, {'SYSMOD': definition.get('@id')}
+                )
+                if len(metadata_usages) != 1:
+                    raise ValueError(f"Expected exactly one SYSMOD metadata usage, found {len(metadata_usages)}.")
+                metadata_usage = mbse4u_sysmlv2_helpers.get_element_fromAPI(
+                    mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), metadata_usages[0]
+                )
+                version = mbse4u_sysmlv2_helpers.get_feature_value(server_url, project_id, commit_id, metadata_usage, 'version')
+                print(f"Found SYSMOD version: {version}")
+            return True
+    return False
+
+
+def get_sysmod_project(server_url, project_id, commit_id, sysmod_project_id):
     """
-    Retrieves the project documentation element.
+    Retrieves the project cover view and the project facts it presents.
     """
-    
-    # Get Element
-    element = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), element_id)
-    if not element:
-        raise ValueError(f"Element {element_id} not found.")
 
-    # Get Documentation via Helper
-    doc_text = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, element_id)
-    
-    response_data = {}
-    response_data['name'] = element.get('declaredName')
+    # Get SYSMOD project
+    sysmod_project = mbse4u_sysmlv2_helpers.get_element_fromAPI(
+        mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id),
+        sysmod_project_id,
+    )
+    if not sysmod_project:
+        raise ValueError(f"Element {sysmod_project_id} not found.")
+
+    response_data = {
+        'name': sysmod_project.get('declaredName'),
+    }
+
+    project_cover_view = mbse4u_sysmlv2_helpers.get_feature(
+        server_url, project_id, commit_id, sysmod_project, 'projectCoverView', 'ViewUsage'
+    )
+    if not project_cover_view:
+        project_cover_view = mbse4u_sysmlv2_helpers.get_feature(
+            server_url, project_id, commit_id, sysmod_project, 'projectCover', 'ViewUsage'
+        )
+    if project_cover_view:
+        response_data['cover_view'] = {
+            'id': project_cover_view.get('@id'),
+            'name': project_cover_view.get('name') or project_cover_view.get('declaredName') or 'projectCoverView',
+        }
+
+    doc_text = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, sysmod_project_id)
     if doc_text:
-        response_data['documentation'] = doc_text
-        
+        response_data['documentation'] = '\n\n'.join(doc_text) if isinstance(doc_text, list) else doc_text
+
+    # Get purpose via Helper
+    purpose_feature_value = mbse4u_sysmlv2_helpers.get_feature_value(
+        server_url, project_id, commit_id, sysmod_project, 'purpose'
+    )
+    if purpose_feature_value is not None:
+        response_data['purpose'] = purpose_feature_value
+
+    # Get project owner via Helper
+    project_owner_feature = mbse4u_sysmlv2_helpers.get_feature(
+        server_url, project_id, commit_id, sysmod_project, 'projectOwner', 'PartUsage'
+    )
+    project_owner_name = None
+    if project_owner_feature:
+        project_owner_name = mbse4u_sysmlv2_helpers.get_feature_value(
+            server_url, project_id, commit_id, project_owner_feature, 'name',
+        )
+
+    if project_owner_name:
+        response_data['owner'] = project_owner_name
+
+    response_data['markdown'] = (
+        f"# {response_data.get('name') or 'Untitled Project'}\n\n"
+        f"Project owner: {response_data.get('owner') or 'No owner available.'}\n\n"
+        f"## Documentation\n\n"
+        f"{response_data.get('documentation') or 'No description available.'}\n\n"
+        f"## Purpose\n\n"
+        f"{response_data.get('purpose') or 'No purpose available.'}"
+    )
+
     return response_data
 
 def get_problem_statement(server_url, project_id, commit_id, element_id):
@@ -103,7 +173,6 @@ def get_system_idea(server_url, project_id, commit_id, element_id):
     
     if context_part:
         # 2. Find 'systemOfInterest' usage inside context
-        print(f"Found context part: {context_part.get('declaredName')}")    
         sub_parts = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, context_part['@id'], 'PartUsage')
         found_elements = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, sub_parts, 'SYSMOD::Project::systemIdeaContext::systemOfInterest')
         system_of_interest = found_elements[0] if found_elements else None
@@ -114,7 +183,6 @@ def get_system_idea(server_url, project_id, commit_id, element_id):
              if doc_text:
                  return {'body': doc_text}
              else:
-                print(f"Try to find Documentation via Definition: {system_of_interest.get('definition')[0]['@id']}")
                 definition = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), system_of_interest.get('definition')[0]['@id'])
                 if definition:
                     doc_text_def = mbse4u_sysmlv2_helpers.get_element_documentation(server_url, project_id, commit_id, definition['@id'])
@@ -129,7 +197,6 @@ def get_context_part(server_url, project_id, commit_id, sysmod_project_id, conte
     """
     query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
     sysmod_project = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, sysmod_project_id)
-    print(f"ownedPart: {sysmod_project.get('ownedPart')}")
     part_usages_ids = [p['@id'] for p in sysmod_project.get('ownedPart', [])]
     part_usages = mbse4u_sysmlv2_helpers.get_elements_fromAPI(query_url, part_usages_ids)
     found_contexts = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, part_usages, context_type, 'PartUsage')
@@ -147,15 +214,84 @@ def get_full_context(server_url, project_id, commit_id, sysmod_project_id, conte
     if not context_part:
         return None
         
-    print(f"Found Context: {context_part.get('name')} ({context_part.get('@id')})")
 
     system = get_context_system(server_url, project_id, commit_id, context_part)
     actors = get_context_actors(server_url, project_id, commit_id, context_part)
     return {
         "context": context_part,
         "system": system,
-        "actors": actors
+        "actors": actors,
+        "interfaces": get_context_interfaces(server_url, project_id, commit_id, context_part, system, actors)
     }
+
+
+def get_context_interfaces(server_url, project_id, commit_id, context_part, system, actors):
+    """Return context interfaces with endpoints resolved to context port IDs."""
+    query_url = mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id)
+    owners = [system, *(system or {}).get('parts', []), *actors]
+    port_ids = {
+        port.get('@id')
+        for owner in owners if owner
+        for port in owner.get('ports', [])
+        if port.get('@id')
+    }
+    if not port_ids:
+        return []
+
+    relationship_refs = context_part.get('ownedRelationship', [])
+    if not isinstance(relationship_refs, list):
+        relationship_refs = [relationship_refs]
+    relationships = mbse4u_sysmlv2_helpers.get_elements_fromAPI(
+        query_url,
+        [ref['@id'] for ref in relationship_refs if isinstance(ref, dict) and ref.get('@id')]
+    )
+    interfaces = [
+        relationship for relationship in relationships
+        if relationship and relationship.get('@type') in ('InterfaceUsage', 'ConnectionUsage')
+    ]
+
+    endpoint_fields = ('relatedFeature', 'endFeature', 'connectionEnd', 'source', 'target', 'referent', 'targetFeature')
+
+    def resolve_endpoint(reference, visited=None):
+        if not isinstance(reference, dict) or not reference.get('@id'):
+            return None
+        element_id = reference['@id']
+        if element_id in port_ids:
+            return element_id
+        visited = visited or set()
+        if element_id in visited:
+            return None
+        visited.add(element_id)
+        element = mbse4u_sysmlv2_helpers.get_element_fromAPI(query_url, element_id)
+        if not element:
+            return None
+        for field in endpoint_fields:
+            values = element.get(field, [])
+            if not isinstance(values, list):
+                values = [values]
+            for value in values:
+                endpoint_id = resolve_endpoint(value, visited)
+                if endpoint_id:
+                    return endpoint_id
+        return None
+
+    result = []
+    for interface in interfaces:
+        endpoints = []
+        for field in endpoint_fields[:4]:
+            values = interface.get(field, [])
+            if not isinstance(values, list):
+                values = [values]
+            for value in values:
+                endpoint_id = resolve_endpoint(value)
+                if endpoint_id and endpoint_id not in endpoints:
+                    endpoints.append(endpoint_id)
+        if len(endpoints) >= 2:
+            result.append({
+                'name': interface.get('name') or interface.get('declaredName') or 'Interface',
+                'ends': endpoints
+            })
+    return result
 
 
 def get_context_system(server_url, project_id, commit_id, context_part):
@@ -163,11 +299,7 @@ def get_context_system(server_url, project_id, commit_id, context_part):
     Retrieves the system of interest from the context.
     Returns system of interest part usage
     """
-    print(f"get_context_system called with context_id: {server_url}/projects/{project_id}/commits/{commit_id}/elements/{context_part['@id']}")
     context_parts = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, context_part, 'PartUsage', 'nestedPart')
-    print(f"Found {len(context_parts)} parts in context {context_part.get('name')} ({context_part.get('@id')})")
-    for cp in context_parts:
-        print(f"\tPart: {cp.get('name')} ({cp.get('@id')})")
     system_of_interest = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, context_parts, 'SYSMOD::SystemContext::systemOfInterest')
     system_of_interest = system_of_interest[0] if system_of_interest else None
     system_id = ""
@@ -176,8 +308,10 @@ def get_context_system(server_url, project_id, commit_id, context_part):
     else:
         return None 
     system = mbse4u_sysmlv2_helpers.get_element_fromAPI(mbse4u_sysmlv2_helpers.get_commit_url(server_url, project_id, commit_id), system_id)
-    print(f"\n\n-----------------------------\nFound system: {system.get('name')} ({system.get('@id')})")
     system['parts'] = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, system, 'PartUsage', 'ownedPart')    
+    system['ports'] = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, system, 'PortUsage', 'ownedPort')
+    for part in system['parts']:
+        part['ports'] = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, part, 'PortUsage', 'ownedPort')
     return system
 
 
@@ -186,11 +320,11 @@ def get_context_actors(server_url, project_id, commit_id, context_part):
     Retrieves the actors from the context.
     Returns actors part usages
     """
-    print(f"get_context_actors called with context_id: {server_url}/{project_id}/{commit_id}/{context_part['@id']}")
     context_parts = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, context_part, 'PartUsage', 'nestedPart')
     print(f"Found {len(context_parts)} parts in context")
     actors = mbse4u_sysmlv2_helpers.find_elements_specializing(server_url, project_id, commit_id, context_parts, 'SYSMOD::SystemContext::actors')
-   
+    for actor in actors:
+        actor['ports'] = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, actor, 'PortUsage', 'ownedPort')
     return actors
 
 
@@ -207,8 +341,6 @@ def get_stakeholders(server_url, project_id, commit_id, sysmod_project_id):
     
     stakeholders = []
     for p in stakeholder_part_usages:
-        print(f"Found Stakeholder: {p.get('name')} {p.get('@id')}")
-                
         # Extract attributes
         stakeholder = {
             'name': p.get('name'),
@@ -220,7 +352,6 @@ def get_stakeholders(server_url, project_id, commit_id, sysmod_project_id):
         }
         stakeholders.append(stakeholder)
     
-    print(f"Found stakeholders: {stakeholders}")
     return stakeholders
 
 def get_feature_bindings_container(server_url, project_id, commit_id):
@@ -230,7 +361,7 @@ def get_feature_bindings_container(server_url, project_id, commit_id):
     
     # 1. Find ID of MetadataDefinition "featureBindings"
     fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['featureBindings'])
-    print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+    print(f"Feature binding metadata definitions found: {len(fb_metadata_id_map)}")
     fb_id = fb_metadata_id_map.get('featureBindings')
     
     if not fb_id:
@@ -255,7 +386,7 @@ def get_feature_bindings(server_url, project_id, commit_id):
     
     # 1. Find ID of MetadataDefinition "FB"
     fb_metadata_id_map = mbse4u_sysmlv2_helpers.get_metadata_ids_by_name(server_url, project_id, commit_id, ['FB'])
-    print(f"# elements found: {len(fb_metadata_id_map)}: {fb_metadata_id_map}")
+    print(f"Feature binding metadata definitions found: {len(fb_metadata_id_map)}")
     fb_id = fb_metadata_id_map.get('FB')
     
     if not fb_id:
@@ -353,7 +484,7 @@ def get_feature_tree_uvl(server_url, project_id, commit_id, sysmod_project_id):
     
     # Get contained TextualRepresentation
     text_reps = mbse4u_sysmlv2_helpers.get_contained_elements(server_url, project_id, commit_id, annotated_id, 'TextualRepresentation')
-    print(f"get_contained_elements: {len(text_reps)} matching elements found in 'TextualRepresentation': {text_reps[0].get('body', '')}")
+    print(f"Textual representations found: {len(text_reps)}")
     if text_reps:
         # Return the body (UVL code)
         return {"uvl_code": text_reps[0].get('body', '')}
@@ -544,8 +675,6 @@ def get_sysmod_usecases(server_url, project_id, commit_id, sysmod_project_id    
     use_cases = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, requirement_system_context, 'UseCaseUsage')
     if use_cases:
         use_cases = [uc for uc in use_cases if uc.get('name') != 'useCases']
-        for use_case in use_cases:
-            print(f"Found use case: {use_case.get('name')}")    
     else:
         print("No use cases found")
         return None
@@ -567,7 +696,6 @@ def get_sysmod_usecases(server_url, project_id, commit_id, sysmod_project_id    
         steps = mbse4u_sysmlv2_helpers.get_owned_usages(server_url, project_id, commit_id, use_case, "ActionUsage")
         step_names = ""
         for s in steps:
-            print(f"Found step: {s}")
             if step_names == "":
                 if s.get('name') != None:
                     step_names += s.get('name')
@@ -583,7 +711,7 @@ def get_sysmod_usecases(server_url, project_id, commit_id, sysmod_project_id    
             "steps": step_names
         })  
 
-    print(f"\n\nFound {len(use_cases_json)} use cases\n\n {use_cases_json}")
+    print(f"Found {len(use_cases_json)} use cases")
     return use_cases_json
 
 
@@ -613,7 +741,7 @@ def call_ai(prompt, api_key, org_id=None):
         return completion.choices[0].message.content.strip()
 
     except Exception as e:
-        print(f"OpenAI API Error: {e}")
+        print(f"OpenAI API request failed: {type(e).__name__}")
         return f"Error calling AI service: {str(e)}"
 
 def generate_image(prompt, api_key, org_id=None):
@@ -643,7 +771,7 @@ def generate_image(prompt, api_key, org_id=None):
         return image_url
 
     except Exception as e:
-        print(f"OpenAI Image API Error: {e}")
+        print(f"OpenAI image request failed: {type(e).__name__}")
         return f"Error generating image: {str(e)}"
 
 
