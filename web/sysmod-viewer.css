@@ -1,0 +1,123 @@
+/* SYSMOD viewer (single page): styles. The same class names as on mbse4u.com/tools/sysmod-viewer/, without the site's framework. */
+:root {
+  --sheet: #f6f7f9; --surface: #ffffff; --ink: #1d2330; --muted: #5f6878; --line: #2457c5; --mark: #ffe14d; --on-mark: #1d2330;
+  --c-methods: #2e7d32; --c-books: #c62828; --c-info: #b26a00; --sec: #2457c5;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --font-display: var(--font-ui);
+  --font-notation: ui-monospace, "Cascadia Code", Consolas, monospace; --font-mono: var(--font-notation);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --sheet: #14171c; --surface: #1b1f26; --ink: #e3e7ee; --muted: #9aa3b2; --line: #6e9cff; --sec: #6e9cff; --c-methods: #66bb6a; --c-books: #ff6b6b; --c-info: #f0b45a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sheet); color: var(--ink); font-family: var(--font-ui); line-height: 1.5; }
+main { max-width: 72rem; margin: 0 auto; padding: 2rem clamp(1rem, 4vw, 2.5rem) 4rem; }
+a { color: var(--line); }
+h1 { font-size: clamp(1.75rem, 3vw, 2.25rem); margin: 0 0 0.25rem; }
+code { font-family: var(--font-notation); font-size: 0.9em; }
+.lead { max-width: 46rem; margin: 0.5rem 0 0; }
+.btn { display: inline-flex; align-items: center; gap: 0.45rem; font: 600 0.9375rem var(--font-ui); padding: 0.55rem 1rem; border: 1.5px solid var(--ink); background: var(--ink); color: var(--sheet); border-radius: 3px; cursor: pointer; text-decoration: none; }
+.btn:hover { background: var(--mark); color: var(--on-mark); }
+.prose { max-width: 46rem; } .prose li + li { margin-top: 0.4rem; }
+.ui { font-family: var(--font-ui); } .text-muted { color: var(--muted); } .font-semibold { font-weight: 600; } .font-normal { font-weight: 400; }
+.m-0 { margin: 0; } .mb-2 { margin-bottom: 0.5rem; } .mb-3 { margin-bottom: 0.75rem; } .mb-4 { margin-bottom: 1rem; } .mt-4 { margin-top: 1rem; } .mt-6 { margin-top: 1.5rem; } .mt-10 { margin-top: 2.5rem; } .mt-16 { margin-top: 4rem; } .ml-3 { margin-left: 0.75rem; }
+.max-w-\[46rem\] { max-width: 46rem; } .overflow-x-auto { overflow-x: auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+[hidden] { display: none !important; }
+
+.display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+.display-md { font-size: clamp(1.625rem, 2.6vw, 2.125rem); }
+.ui { font-family: var(--font-ui); }
+.notation { font-family: var(--font-notation); font-size: 0.8125rem; line-height: 1.7; }
+.stereo { font-family: var(--font-ui); font-size: 0.8125rem; font-weight: 500; color: var(--sec, var(--muted)); line-height: 1.3; }
+.stereo::before { content: "«" / ""; }
+.stereo::after { content: "»" / ""; }
+.bk { border: 1.5px solid var(--line); background: var(--surface); }
+.bk-usage { border-radius: 10px; overflow: hidden; }
+.bk-head { padding: calc(0.7rem + 6px) 1rem 0.8rem; font-family: var(--font-ui); box-shadow: inset 0 6px 0 var(--sec, var(--line)); background: color-mix(in oklab, var(--sec, var(--surface)) 9%, var(--surface)); }
+.bk-comp { border-top: 1.5px solid var(--line); padding: 0.65rem 1rem; }
+.bk-comp.text { font-size: 1rem; line-height: 1.6; }
+.bk-link { display: block; color: inherit; text-decoration: none; height: 100%; }
+.bk-link:hover .bk { background: color-mix(in oklab, var(--mark) 22%, var(--surface)); }
+.bk-link:hover .bk-title { background: var(--mark); color: var(--on-mark); }
+.bk-title { font-family: var(--font-ui); font-stretch: 82%; font-weight: 700; font-size: 1.5rem; line-height: 1.1; letter-spacing: -0.005em; }
+.mc-result { border: 1.5px solid var(--line); border-left-width: 6px; border-radius: 10px; padding: 1rem 1.25rem; background: color-mix(in oklab, var(--surface) 70%, transparent); max-width: 52rem; }
+.mc-result.mc-ok { border-left-color: var(--c-methods); }
+.mc-result.mc-bad { border-left-color: var(--c-books); }
+.mc-result.mc-meh { border-left-color: var(--c-info); }
+.mc-verdict { margin: 0 0 0.35rem; font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; }
+.mc-ok .mc-verdict { color: var(--c-methods); } .mc-bad .mc-verdict { color: var(--c-books); } .mc-meh .mc-verdict { color: var(--c-info); }
+.mc-facts { margin: 0.25rem 0; font-family: var(--font-ui); font-size: 0.9375rem; color: var(--muted); }
+.mc-src { margin: 0.5rem 0 0; padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; font-size: 0.8125rem; background: var(--surface); }
+.mc-files { border-collapse: collapse; font-family: var(--font-ui); font-size: 0.9375rem; min-width: 34rem; }
+.mc-files th, .mc-files td { text-align: left; padding: 0.4rem 1rem 0.4rem 0; border-bottom: 1px solid var(--line); }
+.mc-files .num { text-align: right; font-variant-numeric: tabular-nums; }
+.mc-result, .mc-diag-body { overflow-wrap: anywhere; }
+.mc-src { max-width: 100%; }
+
+/* SYSMOD viewer (/tools/sysmod-viewer/, script public/tools/sysmod-viewer/sysmod-viewer.js) */
+.sv-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; border-bottom: 1.5px solid var(--line); margin-bottom: 1.25rem; }
+.sv-tabs [role="tab"] { font-weight: 600; font-size: 0.9375rem; color: var(--ink); background: none; border: 0; border-bottom: 3px solid transparent; padding: 0.4rem 0.1rem; margin-bottom: -1.5px; cursor: pointer; }
+.sv-tabs [role="tab"]:hover { background: var(--mark); color: var(--on-mark); }
+.sv-tabs [role="tab"][aria-selected="true"] { border-bottom-color: var(--sec, var(--line)); }
+.sv-form { display: grid; grid-template-columns: max-content minmax(0, 34rem); gap: 0.6rem 1rem; align-items: center; }
+@media (max-width: 40rem) { .sv-form { grid-template-columns: minmax(0, 1fr); } .sv-form > span:empty { display: none; } }
+.sv-input { width: 100%; box-sizing: border-box; font-family: var(--font-ui); font-size: 0.9375rem; padding: 0.5rem 0.65rem; border: 1.5px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.sv-input:focus-visible, .sv-file-btn:has(+ input:focus-visible) { outline: 3px solid var(--mark); outline-offset: 1px; }
+.btn:disabled { opacity: 0.55; cursor: progress; }
+.sv-file-btn { cursor: pointer; }
+.sv-status[data-kind="ok"] { color: var(--c-methods); font-weight: 600; }
+.sv-status[data-kind="bad"] { color: var(--c-books); font-weight: 600; }
+.sv-out { scroll-margin-top: 5rem; }
+.sv-head { border-top: 1.5px solid var(--line); padding-top: 1.5rem; display: grid; gap: 0.35rem; }
+.sv-origin { font-size: 0.875rem; margin: 0.25rem 0 0.5rem; }
+.sv-purpose { margin: 0; max-width: 46rem; }
+.sv-sec { margin-top: 3rem; scroll-margin-top: 5rem; }
+.sv-h { font-size: 1.625rem; margin: 0 0 1rem; }
+.sv-h4 { font-weight: 700; font-size: 1.0625rem; margin: 1.5rem 0 0.5rem; }
+.sv-empty { margin: 0; font-style: italic; }
+.sv-details { margin-top: 1rem; }
+.sv-details > summary { cursor: pointer; font-weight: 600; }
+.sv-atlas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; max-width: 52rem; }
+@media (max-width: 40rem) { .sv-atlas { grid-template-columns: minmax(0, 1fr); } }
+.sv-space { border: 1.5px solid var(--line); border-radius: 10px; padding: 0.75rem; display: grid; gap: 0.6rem; align-content: start; background: var(--surface); }
+.sv-space-h { margin: 0; }
+.sv-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sv-cell { flex: 1 1 9rem; display: flex; gap: 0.45rem; align-items: baseline; font-family: var(--font-ui); font-size: 0.9375rem; padding: 0.55rem 0.7rem; border: 1.5px dashed color-mix(in oklab, var(--line) 50%, transparent); border-radius: 6px; color: var(--muted); text-decoration: none; }
+.sv-cell.on { border-style: solid; border-color: var(--c-methods); color: var(--ink); font-weight: 600; background: color-mix(in oklab, var(--c-methods) 9%, var(--surface)); }
+.sv-cell.on:hover { background: var(--mark); color: var(--on-mark); }
+.sv-cell-mark { color: var(--c-methods); font-size: 0.75rem; }
+.sv-checks { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; gap: 0.4rem; max-width: 52rem; font-family: var(--font-ui); font-size: 0.9375rem; }
+.sv-check { display: flex; gap: 0.6rem; align-items: baseline; }
+.sv-check-mark { flex: none; width: 1.25rem; text-align: center; font-weight: 700; }
+.sv-check.passed .sv-check-mark { color: var(--c-methods); }
+.sv-check.failed .sv-check-mark { color: var(--c-info); }
+.sv-quote { margin: 0; max-width: 46rem; border-left: 6px solid var(--sec, var(--line)); background: color-mix(in oklab, var(--sec, var(--line)) 8%, transparent); padding: 0.75rem 1rem; border-radius: 0 10px 10px 0; font-size: 1.125rem; line-height: 1.6; }
+.sv-quote p { margin: 0; } .sv-quote p + p { margin-top: 0.6rem; }
+.sv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; max-width: 46rem; }
+.sv-list p { margin: 0.15rem 0 0; }
+.sv-table { min-width: 44rem; }
+.sv-table td { vertical-align: top; }
+.sv-table .sv-text { min-width: 16rem; max-width: 28rem; }
+.sv-table .sv-text p + p { margin-top: 0.4rem; }
+.sv-tag { display: inline-block; font-family: var(--font-ui); font-size: 0.75rem; font-weight: 600; padding: 0 0.4rem; border-radius: 3px; background: var(--mark); color: var(--on-mark); }
+.sv-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: 1.25rem; }
+.sv-card-title { font-size: 1.25rem; margin: 0.1rem 0; overflow-wrap: anywhere; }
+.sv-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.3rem 0.75rem; margin: 0.75rem 0; font-size: 0.9375rem; }
+.sv-dl dt { font-family: var(--font-ui); font-weight: 600; color: var(--muted); }
+.sv-dl dd { margin: 0; }
+.sv-steps { margin: 0.4rem 0 0; padding-left: 1.5rem; }
+.sv-pre { max-height: 28rem; white-space: pre; }
+.sv-fig { margin: 0; max-width: 60rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0.5rem; overflow-x: auto; }
+.sv-svg { display: block; width: 100%; min-width: 34rem; height: auto; font-family: var(--font-ui); }
+.sv-svg text { fill: var(--ink); font-size: 13px; }
+.sv-svg .sv-name { font-weight: 650; font-size: 14px; }
+.sv-svg .sv-st { fill: var(--muted); font-size: 12px; }
+.sv-svg .sv-ifc { fill: var(--muted); font-size: 11.5px; font-family: var(--font-notation); }
+.sv-sys > rect { fill: color-mix(in oklab, var(--sec, var(--line)) 8%, var(--surface)); stroke: var(--sec, var(--line)); stroke-width: 2; }
+.sv-part rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.25; }
+.sv-part text { font-size: 12.5px; font-family: var(--font-notation); }
+.sv-actor rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.sv-actor circle, .sv-actor path { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; }
+.sv-lines line { stroke: var(--line); stroke-width: 1.5; }
+.sv-lines line.sv-nolink { stroke-dasharray: 4 4; opacity: 0.6; }
