@@ -290,18 +290,26 @@ export function readContext(M, project, def) {
     if (soi && (x === soi || specializes(M, soi, x))) return soi;
     return actors.find((a) => a === x || specializes(M, a, x)) || null;
   };
+  // the part (soi or actor) an end connects, and the port it connects at (operator.controlPort -> operator, controlPort)
   const partOfEnd = (end) => {
-    let e = end;
+    let e = end, port = null;
     for (let i = 0; e && i < 6; i++) {
       const hit = match(e);
-      if (hit) return hit;
+      if (hit) return { part: hit, port };
+      if (e['@type'] === 'PortUsage' && !port) port = e;
       const chain = M.all(e.chainingFeature);
-      if (chain.length) { e = chain[0]; continue; }
+      if (chain.length) {
+        const last = chain[chain.length - 1];
+        if (last['@type'] === 'PortUsage') port = last;
+        e = chain[0];
+        continue;
+      }
       const rs = M.all(e.ownedSpecialization).find((s) => s['@type'] === 'ReferenceSubsetting') || M.all(e.ownedReferenceSubsetting)[0];
       const next = rs ? M.get(rs.referencedFeature ?? rs.general) : null;
       if (next) { e = next; continue; }
       // a port of the soi (or of a part that redefines it) also stands for the soi
-      return match(M.get(e.owningType ?? e.owner));
+      const owner = match(M.get(e.owningType ?? e.owner));
+      return owner ? { part: owner, port: port || (e['@type'] === 'PortUsage' ? e : null) } : null;
     }
     return null;
   };
@@ -310,8 +318,13 @@ export function readContext(M, project, def) {
     if (c['@type'] === 'BindingConnectorAsUsage' || c['@type'] === 'AllocationUsage') continue;
     // the owned ends: the inherited ends of the library (actorPort, systemPort) point to the generic actors and soi
     const ends = M.all(c.ownedEndFeature).length ? M.all(c.ownedEndFeature) : M.all(c.connectorEnd).length ? M.all(c.connectorEnd) : M.all(c.relatedFeature);
-    const ps = [...new Set(ends.map(partOfEnd).filter(Boolean))];
-    if (ps.length === 2 && ps.includes(soi)) links.push({ id: c['@id'], name: nameOf(c), kind: c['@type'], actor: ps.find((p) => p !== soi)['@id'] });
+    const hits = ends.map(partOfEnd).filter(Boolean);
+    const ps = [...new Set(hits.map((x) => x.part))];
+    if (ps.length === 2 && ps.includes(soi)) {
+      const actor = ps.find((p) => p !== soi);
+      const portOf = (part) => nameOf(hits.find((x) => x.part === part)?.port) || '';
+      links.push({ id: c['@id'], name: nameOf(c), kind: c['@type'], actor: actor['@id'], actorPort: portOf(actor), systemPort: portOf(soi) });
+    }
   }
   // white box: the system of interest of the Impl context, its parts
   let soiImpl = null;
@@ -321,13 +334,16 @@ export function readContext(M, project, def) {
     key: def.key, role: def.role, title: def.title,
     context: { ...brief(M, ctx), types: typeNames(M, ctx) },
     impl: impl ? brief(M, impl) : null,
-    system: soi ? { ...brief(M, soi), types: typeNames(M, soi), stereotypes: stereotypesOf(M, soi) } : null,
+    system: soi ? { ...brief(M, soi), types: typeNames(M, soi), stereotypes: stereotypesOf(M, soi), ports: portsOf(M, soi) } : null,
     systemImpl: soiImpl ? { ...brief(M, soiImpl), types: typeNames(M, soiImpl) } : null,
-    actors: actors.map((a) => ({ ...brief(M, a), types: typeNames(M, a), stereotypes: stereotypesOf(M, a).filter((s) => s !== 'system') })),
+    actors: actors.map((a) => ({ ...brief(M, a), types: typeNames(M, a), stereotypes: stereotypesOf(M, a).filter((s) => s !== 'system'), ports: portsOf(M, a) })),
     links,
-    parts: inner.map((p) => ({ ...brief(M, p), types: typeNames(M, p), multiplicity: multiplicityOf(M, p) })),
+    parts: inner.map((p) => ({ ...brief(M, p), types: typeNames(M, p), multiplicity: multiplicityOf(M, p), ports: portsOf(M, p) })),
   };
 }
+
+/** The ports of a part (effective, without the generic ports of the SYSMOD library such as actorPorts, systemPorts) */
+const portsOf = (M, el) => featuresOf(M, el, 'PortUsage').filter((p) => !isLibrary(p) && nameOf(p)).map((p) => ({ id: p['@id'], name: nameOf(p), types: typeNames(M, p) }));
 
 /** "1..*", "0..1", "" from the multiplicity of a feature */
 export function multiplicityOf(M, f) {
@@ -474,6 +490,17 @@ function readFeatureTree(M) {
   return null;
 }
 
+/** The version of the SYSMOD library in the model: @SYSMOD { version = "5.1.4"; } on the SYSMOD package; '' if not stated */
+export function sysmodVersionOf(M) {
+  for (const mu of M.ofType('MetadataUsage')) {
+    const def = M.get(mu.metadataDefinition) || M.all(mu.definition)[0];
+    if (!def || nameOf(def) !== 'SYSMOD' || !/^SYSMOD::/.test(def.qualifiedName || 'SYSMOD::')) continue;
+    const v = valueOf(M, featureNamed(M, mu, 'version'));
+    if (v) return v;
+  }
+  return '';
+}
+
 /** Everything the viewer shows for one SYSMOD project. Plain data: strings, arrays, objects. */
 export function readProject(M, projectId) {
   const project = M.get(projectId);
@@ -484,7 +511,10 @@ export function readProject(M, projectId) {
   const owner = roleOf(M, project, 'projectOwner')[0];
   const sic = byKey.SIC;
   const sicImpl = M.get(sic?.systemImpl?.id), sicSoi = M.get(sic?.system?.id);
+  const cover = featureNamed(M, project, 'projectCoverView', 'ViewUsage') || featureNamed(M, project, 'projectCover', 'ViewUsage');
   const view = {
+    sysmodVersion: sysmodVersionOf(M),
+    coverView: cover ? nameOf(cover) : '',
     id: project['@id'],
     name: nameOf(project),
     qualifiedName: project.qualifiedName || '',

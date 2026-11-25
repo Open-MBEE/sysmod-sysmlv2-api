@@ -317,6 +317,7 @@ async function start(cfg) {
       h('p', { class: 'stereo m-0' }, 'project'),
       h('h2', { class: 'display display-md m-0' }, v.name),
       v.qualifiedName ? h('p', { class: 'notation text-muted m-0' }, v.qualifiedName) : null,
+      v.sysmodVersion || v.coverView ? h('p', { class: 'ui text-muted m-0 sv-origin' }, [v.sysmodVersion ? `SYSMOD ${v.sysmodVersion}` : '', v.coverView ? `cover view: ${v.coverView}` : ''].filter(Boolean).join(' · ')) : null,
       h('p', { class: 'ui text-muted sv-origin' }, `Source: ${source?.label || ''} · ${nf.format(model.size)} elements${ms ? ` · read in ${Math.round(ms)} ms` : ''}`),
       v.purpose ? h('p', { class: 'sv-purpose' }, h('span', { class: 'ui font-semibold' }, 'Purpose: '), v.purpose) : null,
       v.owner ? h('p', { class: 'ui m-0' }, h('span', { class: 'font-semibold' }, 'Project owner: '), v.owner) : null,
@@ -367,13 +368,13 @@ async function start(cfg) {
   function contextView(c) {
     const facts = h('p', { class: 'ui text-muted m-0 mb-3' },
       h('span', { class: 'notation' }, c.context.name, c.context.types.length ? ` : ${c.context.types[0]}` : ''),
-      ` · ${c.actors.length} actors · ${c.links.length} interfaces · ${c.parts.length} parts${c.systemImpl ? ' (white box)' : ''}`);
+      ` · ${c.actors.length} actors · ${c.links.length} interfaces · ${c.system?.ports?.length || 0} system ports · ${c.parts.length} parts${c.systemImpl ? ' (white box)' : ''}`);
     return [facts, h('figure', { class: 'sv-fig' }, diagram(c), h('figcaption', { class: 'sr-only' }, describe(c))),
       c.context.doc ? h('details', { class: 'sv-details' }, h('summary', { class: 'ui' }, 'Description'), h('div', { class: 'prose max-w-[46rem]' }, paras(c.context.doc))) : null];
   }
   const describe = (c) => `System context ${c.context.name}: system of interest ${c.system?.name || 'missing'}`
     + `${c.parts.length ? ` with the parts ${c.parts.map((p) => p.name).join(', ')}` : ''}; actors ${c.actors.map((a) => `${a.name}${a.stereotypes.length ? ` (${a.stereotypes.join(', ')})` : ''}`).join(', ') || 'none'}`
-    + `${c.links.length ? `; interfaces ${c.links.map((l) => l.name).join(', ')}` : ''}.`;
+    + `${c.links.length ? `; interfaces ${c.links.map((l) => `${l.name || 'interface'}${l.actorPort || l.systemPort ? ` (${l.actorPort || '?'} to ${l.systemPort || '?'})` : ''}`).join(', ')}` : ''}.`;
 
   const clip = (text, n) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
   function diagram(c) {
@@ -403,15 +404,30 @@ async function start(cfg) {
     });
     // actors and their interfaces
     const linkOf = new Map();
-    for (const l of c.links) { if (!linkOf.has(l.actor)) linkOf.set(l.actor, []); linkOf.get(l.actor).push(l.name); }
-    const lines = s('g', { class: 'sv-lines' }), acts = s('g', {});
+    for (const l of c.links) { if (!linkOf.has(l.actor)) linkOf.set(l.actor, []); linkOf.get(l.actor).push(l); }
+    const lines = s('g', { class: 'sv-lines' }), acts = s('g', {}), portsG = s('g', {});
     const place = (list, side) => list.forEach((a, i) => {
       const off = (H - 2 * PAD - (list.length * ACT_H + (list.length - 1) * GAP)) / 2;
       const x = side === 'left' ? PAD : W - PAD - ACT_W, y = PAD + off + i * (ACT_H + GAP);
       const cy = y + ACT_H / 2, ax = side === 'left' ? x + ACT_W : x, sx = side === 'left' ? sysX : sysX + sysW;
-      const names = linkOf.get(a.id) || [];
-      lines.append(s('line', { x1: ax, y1: cy, x2: sx, y2: Math.min(Math.max(cy, sysY + 14), sysY + sysH - 14), class: names.length ? '' : 'sv-nolink' }));
-      if (names.length) {
+      const ls = linkOf.get(a.id) || [];
+      const names = ls.map((l) => l.name || 'interface');
+      const sy = Math.min(Math.max(cy, sysY + 14), sysY + sysH - 14);
+      lines.append(s('line', { x1: ax, y1: cy, x2: sx, y2: sy, class: ls.length ? '' : 'sv-nolink' }));
+      if (ls.length) {
+        // the ports the interface connects: small squares on the borders, their names below the line
+        const ap = [...new Set(ls.map((l) => l.actorPort).filter(Boolean))].join(', '), sp = [...new Set(ls.map((l) => l.systemPort).filter(Boolean))].join(', ');
+        if (ap) portsG.append(s('rect', { x: ax - 4, y: cy - 4, width: 8, height: 8, class: 'sv-port' }, s('title', {}, `${a.name}.${ap}`)));
+        if (sp) portsG.append(s('rect', { x: sx - 4, y: sy - 4, width: 8, height: 8, class: 'sv-port' }, s('title', {}, `${c.system?.name || 'system'}.${sp}`)));
+        if (ap || sp) {
+          // two lines, left port above the right one, so that long names fit into the lane between the boxes
+          const [l, r] = side === 'left' ? [ap || '·', sp || '·'] : [sp || '·', ap || '·'];
+          const mx = (ax + sx) / 2, my = (cy + sy) / 2 + 15;
+          lines.append(s('text', { x: mx, y: my, 'text-anchor': 'middle', class: 'sv-portname' }, s('title', {}, `ports: ${l} ↔ ${r}`),
+            s('tspan', { x: mx, dy: 0 }, `${clip(l, 19)} ↔`), s('tspan', { x: mx, dy: 12 }, clip(r, 19))));
+        }
+      }
+      if (ls.length) {
         // long names on two lines, broken at a word boundary of the camelCase name (operator|Interface)
         const label = names.join(', ');
         let parts = [label];
@@ -437,7 +453,7 @@ async function start(cfg) {
       acts.append(g);
     });
     place(left, 'left'); place(right, 'right');
-    svg.append(lines, sys, acts);
+    svg.append(lines, sys, acts, portsG);
     if (!c.actors.length) svg.append(s('text', { x: PAD, y: PAD + 14, class: 'sv-st' }, 'no actors'));
     return svg;
   }

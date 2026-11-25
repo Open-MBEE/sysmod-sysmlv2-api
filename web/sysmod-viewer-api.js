@@ -70,7 +70,7 @@ export function usesRelay(url, relay) {
   try { return relay.servers.map((s) => String(s).replace(/\/+$/, '').toLowerCase()).includes(new URL(url).origin.toLowerCase()); } catch { return false; }
 }
 
-export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn = globalThis.fetch.bind(globalThis), pageSize = 1000 } = {}) {
+export function createClient({ baseUrl, token = '', relay = null, fetch: fetchFn = globalThis.fetch.bind(globalThis), pageSize = 256 } = {}) {   // 256 per page: some servers take too long for larger pages (e.g. sysml2.intercax.com)
   const base = normalizeBaseUrl(baseUrl);
   if (!base) throw new ApiError('Enter the address of a SysML v2 API server.');
   const t = String(token || '').trim();

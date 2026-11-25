@@ -120,4 +120,6 @@ code { font-family: var(--font-notation); font-size: 0.9em; }
 .sv-actor rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
 .sv-actor circle, .sv-actor path { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; }
 .sv-lines line { stroke: var(--line); stroke-width: 1.5; }
+.sv-port { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.sv-svg .sv-portname { fill: var(--muted); font-size: 10.5px; font-family: var(--font-notation); }
 .sv-lines line.sv-nolink { stroke-dasharray: 4 4; opacity: 0.6; }
