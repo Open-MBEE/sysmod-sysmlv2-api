@@ -47,9 +47,9 @@ The SYSMOD Viewer as **one web page**: it reads the model with the SysML v2 API 
 python web/serve.py          # then open http://localhost:8080/
 ```
 
-`serve.py` uses only the Python standard library. It serves the page and **relays** its requests, read-only, to any SysML v2 API server: a page alone can only read servers that allow requests from it (CORS), and a page on https may not call an http server. With the relay every server works, e.g. `http://sysml2.intercax.com:9000` or Open-MBEE Flexo. The relay listens on localhost only, allows only GET of the read endpoints (`/projects`, `…/branches`, `…/commits`, `…/commits/{id}/elements`) with the paging query, follows no redirects and passes the token on without storing it. Any other static web server works too; then only servers that allow CORS can be read.
+`serve.py` uses only the Python standard library. It serves the page and **relays** its requests, read-only, to any SysML v2 API server (or only to those in `ALLOWED_SYSML_SERVER_ORIGINS`, if set, as for the Flask server): a page alone can only read servers that allow requests from it (CORS), and a page on https may not call an http server. With the relay every server works, e.g. `http://sysml2.intercax.com:9000` or Open-MBEE Flexo. The relay listens on localhost only, allows only GET of the read endpoints (`/projects`, `…/branches`, `…/commits`, `…/commits/{id}/elements`) with the paging query, follows no redirects and passes the token on without storing it. Any other static web server works too; then only servers that allow CORS can be read.
 
-What it shows: the SYSMOD Atlas, completeness checks, problem statement, system idea and objectives, stakeholders, needs, system requirements, system use cases and the context diagram (actors, interfaces, white box parts) of all six contexts, from the brownfield to the product architecture. It reads **SYSMOD v5** (the project is an `occurrence def` with `#project`; the roles are found by their direct redefinition of the features of `SYSMOD::Project`). It loads a commit once (paged) and reads it in the browser. Also a `.json` file with the elements of a commit can be opened.
+What it shows: the project cover (purpose, owner, description, the SYSMOD version from `@SYSMOD { version = … }`, the cover view), the SYSMOD Atlas, completeness checks, problem statement, system idea and objectives, stakeholders, needs, system requirements, system use cases and the context diagram of all six contexts, from the brownfield to the product architecture: actors, the system of interest with its white box parts, and the interfaces with the ports they connect. It reads **SYSMOD v5** (the project is an `occurrence def` with `#project`; the roles are found by their direct redefinition of the features of `SYSMOD::Project`). It loads a commit once (paged) and reads it in the browser. Also a `.json` file with the elements of a commit can be opened.
 
 | File | What |
 |---|---|
@@ -61,7 +61,7 @@ What it shows: the SYSMOD Atlas, completeness checks, problem statement, system 
 
 The same JavaScript runs on [mbse4u.com/tools/sysmod-viewer](https://mbse4u.com/tools/sysmod-viewer/), which in addition opens the Delivery Drone example and `.sysml` files with a SysML v2 engine in the browser, and reaches servers without CORS through a relay with an allowlist. Changes to the viewer belong here; the site copies them.
 
-Read-only. Editing the problem statement, AI suggestions, the creation wizard and the feature binding matrix are in the Flask server (below). Tests of `serve.py`: `python -m unittest tests/test_web_serve.py`.
+Read-only. Editing the problem statement, AI suggestions and the creation wizard are in the Flask server (below). Tests of `serve.py`: `python -m pytest tests/test_web_serve.py` (part of `python -m pytest`, no extra packages). The viewer's JavaScript is tested on mbse4u.com with the Delivery Drone model and `tests/test_sysmod.sysml` of this repository.
 
 ---
 

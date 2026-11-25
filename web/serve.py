@@ -17,10 +17,13 @@ The relay is narrow:
     .../commits/{id}/elements[/{id}], optionally behind a path prefix such as /api/v1) and only the paging query
     page[size], page[after], page[before]; http and https; no redirects followed; JSON only;
   - the token (header X-Relay-Authorization) is passed on as Authorization and never stored or logged.
+  - ALLOWED_SYSML_SERVER_ORIGINS (as for the Flask server, comma-separated origins such as http://localhost:9000):
+    if set, only these servers; if not set, any server (the relay listens on localhost only).
 The same rules as relay.php of mbse4u.com/tools/sysmod-viewer/, which in addition has an allowlist of servers.
 """
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -39,6 +42,14 @@ READ_PATH = re.compile(
     + r"(/elements(/" + SEGMENT + r")?)?)?)?)?$"
 )
 CONFIG = {"relay": {"url": "relay", "servers": ["*"], "label": "the local relay (serve.py)"}}
+
+
+def allowed_origins():
+    """ALLOWED_SYSML_SERVER_ORIGINS as a set of origins, or None (any server)."""
+    raw = os.environ.get("ALLOWED_SYSML_SERVER_ORIGINS", "").strip()
+    if not raw:
+        return None
+    return {o.strip().rstrip("/").lower() for o in raw.split(",") if o.strip()}
 
 
 def check_url(url: str):
@@ -70,7 +81,11 @@ def check_url(url: str):
             return None, "query not allowed"
         seen.add(k)
         query.append(urllib.parse.quote(k, safe="") + "=" + urllib.parse.quote(v, safe=""))
-    netloc = p.hostname.lower() + (f":{p.port}" if p.port else "")
+    host = p.hostname.lower()
+    netloc = (f"[{host}]" if ":" in host else host) + (f":{p.port}" if p.port else "")
+    allowed = allowed_origins()
+    if allowed is not None and f"{p.scheme.lower()}://{netloc}" not in allowed:
+        return None, "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)"
     return urllib.parse.urlunsplit((p.scheme.lower(), netloc, path, "&".join(query), "")), ""
 
 

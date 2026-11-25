@@ -68,6 +68,17 @@ class Rules(unittest.TestCase):
         self.ok("https://h.org/projects/p/branches/b")
         self.ok("https://H.org/projects", "https://h.org/projects")
 
+    def test_allowed_origins(self):
+        import os
+        os.environ["ALLOWED_SYSML_SERVER_ORIGINS"] = "http://localhost:9000, https://h.org/"
+        try:
+            self.ok("http://localhost:9000/projects")
+            self.ok("https://h.org/projects")
+            self.refused("https://other.org/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
+            self.refused("http://localhost:9001/projects", "server not allowed (ALLOWED_SYSML_SERVER_ORIGINS)")
+        finally:
+            del os.environ["ALLOWED_SYSML_SERVER_ORIGINS"]
+
     def test_refused(self):
         self.refused("", "invalid address")
         self.refused("file:///etc/passwd", "only http and https")
