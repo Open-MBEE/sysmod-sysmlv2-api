@@ -247,7 +247,7 @@ def main():
     print("Servers it may read (ALLOWED_SYSML_SERVER_ORIGINS): " + ", ".join(allowed_origins()))
     try:
         # Plain HTTP on purpose: a local development server (127.0.0.1 by default).
-        server.serve_forever()  # NOSONAR(python:S5332)
+        server.serve_forever()  # NOSONAR
     except KeyboardInterrupt:
         pass
 
