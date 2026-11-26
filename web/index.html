@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>SYSMOD Viewer</title>
+  <meta name="description" content="View a SYSMOD project of a SysML v2 model: Atlas, problem statement, stakeholders, needs, requirements, use cases and system context diagrams.">
+  <link rel="stylesheet" href="sysmod-viewer.css">
+</head>
+<body>
+<main>
+  <header>
+    <p class="stereo m-0">tool</p>
+    <h1>SYSMOD Viewer</h1>
+    <p class="lead">
+      Shows a <a href="https://sysmod.org">SYSMOD</a> project of a SysML v2 model the way the method structures it: the SYSMOD Atlas, the problem statement,
+      the system idea and its objectives, stakeholders, needs, system requirements, system use cases and the system context of every architecture.
+      It reads the model with the SysML v2 API (OMG Systems Modeling API). A single page, no server of its own: everything runs in your browser.
+    </p>
+  </header>
+
+  <div id="sysmod-viewer" class="mt-10" data-config='{"core":"./sysmod-viewer-core.js","api":"./sysmod-viewer-api.js"}'>
+    <noscript><p class="ui text-muted">The SYSMOD viewer needs JavaScript.</p></noscript>
+
+    <section class="sv-source" aria-labelledby="sv-source-h" hidden data-js-only>
+      <h2 id="sv-source-h" class="display display-md mb-4">Open a model</h2>
+      <div class="sv-tabs ui" role="tablist" aria-label="Source of the model">
+        <button type="button" role="tab" id="sv-tab-server" aria-controls="sv-panel-server" aria-selected="true" data-src-tab="server">SysML v2 API server</button>
+        <button type="button" role="tab" id="sv-tab-files" aria-controls="sv-panel-files" aria-selected="false" data-src-tab="files">JSON file</button>
+      </div>
+
+      <div class="sv-panel" role="tabpanel" id="sv-panel-server" aria-labelledby="sv-tab-server" data-src-panel="server">
+        <p class="m-0 mb-4 max-w-[46rem]" data-relay-note>
+          The address of a SysML v2 API server, e.g. the API services of the SysML v2 Pilot Implementation or Open-MBEE Flexo.
+          Opened directly, the page can only read servers that allow requests from it (CORS); run <code>python web/serve.py</code> to reach any server through its local relay.
+        </p>
+        <div class="sv-form">
+          <label class="ui font-semibold" for="sv-url">Server address</label>
+          <input id="sv-url" class="sv-input" type="url" inputmode="url" placeholder="http://localhost:9000" autocomplete="url" spellcheck="false" data-url>
+          <label class="ui font-semibold" for="sv-token">Token <span class="font-normal text-muted">(optional)</span></label>
+          <input id="sv-token" class="sv-input" type="password" placeholder="Bearer …" autocomplete="off" spellcheck="false" data-token>
+          <span></span>
+          <p class="m-0">
+            <button type="button" class="btn" data-connect>Connect</button>
+            <output class="ui text-muted ml-3 sv-status" data-status-server aria-live="polite"></output>
+          </p>
+        </div>
+        <div class="sv-form mt-4" data-proj-row hidden>
+          <label class="ui font-semibold" for="sv-proj-filter">Find project</label>
+          <input id="sv-proj-filter" class="sv-input" type="search" placeholder="Name or id" data-proj-filter>
+          <label class="ui font-semibold" for="sv-proj">Project</label>
+          <select id="sv-proj" class="sv-input" data-proj></select>
+          <label class="ui font-semibold" for="sv-commit">Commit</label>
+          <select id="sv-commit" class="sv-input" data-commit></select>
+          <span></span>
+          <p class="m-0"><button type="button" class="btn" data-load>Load the model</button></p>
+        </div>
+        <div class="mt-4" data-err-server></div>
+      </div>
+
+      <div class="sv-panel" role="tabpanel" id="sv-panel-files" aria-labelledby="sv-tab-files" data-src-panel="files" hidden>
+        <p class="m-0 mb-4 max-w-[46rem]">
+          A <strong>.json file</strong> with the elements of a commit, as <code>GET …/commits/{commit}/elements</code> of the SysML v2 API returns them.
+          To view <code>.sysml</code> files, use <a href="https://mbse4u.com/tools/sysmod-viewer/">mbse4u.com/tools/sysmod-viewer</a>, which reads them with a SysML v2 engine in the browser.
+        </p>
+        <p class="m-0">
+          <label class="btn sv-file-btn" for="sv-files">Choose a file</label>
+          <input id="sv-files" class="sr-only" type="file" accept=".json" multiple data-files>
+          <output class="ui text-muted ml-3 sv-status" data-status-files aria-live="polite"></output>
+        </p>
+        <div class="mt-4" data-err-files></div>
+      </div>
+
+      <div class="sv-form mt-6" data-pick hidden>
+        <label class="ui font-semibold" for="sv-pick">SYSMOD project</label>
+        <select id="sv-pick" class="sv-input" data-pick-select></select>
+      </div>
+    </section>
+
+    <div class="sv-out mt-10" data-out aria-live="polite"></div>
+  </div>
+
+  <section class="prose mt-16" aria-labelledby="sv-good-to-know">
+    <h2 id="sv-good-to-know">Good to know</h2>
+    <ul>
+      <li><strong>Run it:</strong> <code>python web/serve.py</code>, then open <code>http://localhost:8080/</code>. The script needs only Python 3, no packages. Browsers do not run the page from a <code>file://</code> address.</li>
+      <li><strong>CORS and http:</strong> a page can only read servers that allow requests from it. <code>serve.py</code> also relays the requests (read-only) to the servers in <code>ALLOWED_SYSML_SERVER_ORIGINS</code> (default <code>http://localhost:9000</code>), including plain <code>http://</code> ones and servers without CORS.</li>
+      <li><strong>Token:</strong> optional, passed on as header <code>Authorization</code>; it stays in the page and is never stored. The page address records server, project and commit (not the token).</li>
+      <li><strong>SYSMOD v5:</strong> the project is an <code>occurrence def</code> with <code>#project</code> or a specialization of <code>SYSMOD::Project</code>; the SYSMOD library must be in the same project.</li>
+      <li><strong>Read-only.</strong> Editing, the AI suggestions and the creation wizard are in the Flask server of this repository (<code>sysmod_api_server.py</code>).</li>
+    </ul>
+  </section>
+</main>
+<script type="module">
+  // Settings of the server that delivers this page: web/serve.py provides viewer-config.json with its relay.
+  const root = document.getElementById('sysmod-viewer');
+  try {
+    const r = await fetch('viewer-config.json', { cache: 'no-store' });
+    if (r.ok) {
+      const extra = await r.json();
+      root.dataset.config = JSON.stringify({ ...JSON.parse(root.dataset.config), ...extra });
+      if (extra.relay) document.querySelector('[data-relay-note]').append(` Running with serve.py: these servers are reached through its relay: ${extra.relay.servers.join(', ')} (ALLOWED_SYSML_SERVER_ORIGINS).`);
+    }
+  } catch { /* served without serve.py: no relay */ }
+  await import('./sysmod-viewer.js');
+</script>
+</body>
+</html>

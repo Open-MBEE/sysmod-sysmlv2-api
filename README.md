@@ -16,6 +16,7 @@
 
 **sysmod-sysmlv2-api-mcp** connects to a SysML v2 repository server and provides:
 
+- 📄 **Single-page SYSMOD Viewer** (`web/`) — the recommended viewer: one web page, no Flask server, no Python packages. See [Single-page viewer](#single-page-viewer-web)
 - 🔌 **REST API + Web UI** — interactive browser-based viewer and wizard for SYSMOD models  
 - 🤖 **MCP Server** — exposes all SYSMOD artifacts as tools for AI agents (Claude, Cursor, GitHub Copilot, etc.)
 - 🧠 **SYSMOD AI Agent** — an LLM can autonomously query problem statements, contexts, stakeholders, requirements, feature trees, and more directly from the SysML v2 model
@@ -38,9 +39,38 @@
 
 ---
 
+## Single-page viewer (`web/`)
+
+The SYSMOD Viewer as **one web page**: it reads the model with the SysML v2 API directly from the browser. No Flask server, no `pip install`.
+
+```bash
+python web/serve.py          # then open http://localhost:8080/
+
+# other SysML v2 servers: name them, as for the Flask server
+ALLOWED_SYSML_SERVER_ORIGINS=http://localhost:9000,http://sysml2.intercax.com:9000 python web/serve.py
+```
+
+`serve.py` uses only the Python standard library. It serves the page and **relays** its requests, read-only, to the SysML v2 API servers in `ALLOWED_SYSML_SERVER_ORIGINS` (as for the Flask server; default `http://localhost:9000`): a page alone can only read servers that allow requests from it (CORS), and a page on https may not call an http server. With the relay every allowed server works, e.g. `http://sysml2.intercax.com:9000` or Open-MBEE Flexo. The relay listens on localhost only, allows only GET of the read endpoints (`/projects`, `…/branches`, `…/commits`, `…/commits/{id}/elements`) with the paging query, follows no redirects and passes the token on without storing it. Any other static web server works too; then only servers that allow CORS can be read.
+
+What it shows: the project cover (purpose, owner, description, the SYSMOD version from `@SYSMOD { version = … }`, the cover view), the SYSMOD Atlas, completeness checks, problem statement, system idea and objectives, stakeholders, needs, system requirements, system use cases and the context diagram of all six contexts, from the brownfield to the product architecture: actors, the system of interest with its white box parts, and the interfaces with the ports they connect. It reads **SYSMOD v5** (the project is an `occurrence def` with `#project`; the roles are found by their direct redefinition of the features of `SYSMOD::Project`). It loads a commit once (paged) and reads it in the browser. Also a `.json` file with the elements of a commit can be opened.
+
+| File | What |
+|---|---|
+| `web/index.html`, `web/sysmod-viewer.css` | the page |
+| `web/sysmod-viewer-core.js` | reads the SYSMOD project from the elements (pure ES module, no dependencies) |
+| `web/sysmod-viewer-api.js` | the requests to the SysML v2 API server, paging, relay |
+| `web/sysmod-viewer.js` | the interface; the context diagrams are SVG drawn by the page (no CDN) |
+| `web/serve.py` | serves the page and relays the requests |
+
+The same JavaScript runs on [mbse4u.com/tools/sysmod-viewer](https://mbse4u.com/tools/sysmod-viewer/), which in addition opens the Delivery Drone example and `.sysml` files with a SysML v2 engine in the browser, and reaches servers without CORS through a relay with an allowlist. Changes to the viewer belong here; the site copies them.
+
+Read-only. Editing the problem statement, AI suggestions and the creation wizard are in the Flask server (below). Tests of `serve.py`: `python -m pytest tests/test_web_serve.py` (part of `python -m pytest`, no extra packages). The viewer's JavaScript is tested on mbse4u.com with the Delivery Drone model and `tests/test_sysmod.sysml` of this repository.
+
+---
+
 ## Features
 
-### SYSMOD Viewer (`project.html`)
+### SYSMOD Viewer (`project.html`, Flask; for the single-page viewer see above)
 
 | Feature | Description |
 |---|---|
@@ -211,7 +241,7 @@ ALLOWED_SYSML_SERVER_ORIGINS=http://localhost:9000,http://127.0.0.1:9000,http://
 python sysmod_api_server.py
 ```
 
-Runs on `http://localhost:5000`. Open in browser to use the web UI.
+Runs on `http://localhost:5000`. Open in browser to use the web UI (viewer with editing and AI, wizard). For viewing only, the [single-page viewer](#single-page-viewer-web) needs no server packages.
 
 ---
 
