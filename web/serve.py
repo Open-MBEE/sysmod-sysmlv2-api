@@ -246,7 +246,7 @@ def main():
     print(f"SYSMOD viewer on port {a.port} of {a.host}: open localhost:{a.port} in the browser   (Ctrl+C to stop)")
     print("Servers it may read (ALLOWED_SYSML_SERVER_ORIGINS): " + ", ".join(allowed_origins()))
     try:
-        server.serve_forever()
+        server.serve_forever()   # NOSONAR: plain HTTP on purpose, local development server (127.0.0.1 by default)
     except KeyboardInterrupt:
         pass
 
